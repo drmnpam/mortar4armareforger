@@ -1,6 +1,8 @@
 part of 'ballistics_cubit.dart';
 
 class BallisticsState extends Equatable {
+  static const Object _unset = Object();
+
   final Position mortarPosition;
   final Position targetPosition;
   final String selectedMortar;
@@ -36,9 +38,9 @@ class BallisticsState extends Equatable {
     Position? targetPosition,
     String? selectedMortar,
     bool? autoCharge,
-    int? preferredCharge,
-    FiringSolution? solution,
-    String? errorMessage,
+    Object? preferredCharge = _unset,
+    Object? solution = _unset,
+    Object? errorMessage = _unset,
     bool clearError = false,
     bool clearSolution = false,
   }) {
@@ -47,9 +49,15 @@ class BallisticsState extends Equatable {
       targetPosition: targetPosition ?? this.targetPosition,
       selectedMortar: selectedMortar ?? this.selectedMortar,
       autoCharge: autoCharge ?? this.autoCharge,
-      preferredCharge: preferredCharge ?? this.preferredCharge,
-      solution: clearSolution ? null : solution ?? this.solution,
-      errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+      preferredCharge: preferredCharge == _unset
+          ? this.preferredCharge
+          : preferredCharge as int?,
+      solution: clearSolution
+          ? null
+          : (solution == _unset ? this.solution : solution as FiringSolution?),
+      errorMessage: clearError
+          ? null
+          : (errorMessage == _unset ? this.errorMessage : errorMessage as String?),
     );
   }
   

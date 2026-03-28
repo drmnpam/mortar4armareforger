@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme/app_theme.dart';
+import '../../app/theme/theme_cubit.dart';
 import '../../ballistics/ballistics.dart';
 import '../../storage/storage.dart';
 
@@ -17,8 +18,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late StorageService _storage;
   String _preferredMortar = 'M252';
   bool _autoCharge = true;
-  bool _darkMode = true;
-  bool _highContrast = false;
   
   @override
   void initState() {
@@ -38,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final mortars = BallisticTables.availableMortars;
+    final themeState = context.watch<ThemeCubit>().state;
     
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -109,16 +109,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Card(
               child: Column(
                 children: [
-                  SwitchListTile(
-                    secondary: Icon(Icons.dark_mode, color: AppTheme.accent),
-                    title: const Text('Dark Mode'),
-                    subtitle: const Text('Use dark theme'),
-                    value: _darkMode,
-                    activeColor: AppTheme.primary,
-                    onChanged: (value) {
-                      setState(() => _darkMode = value);
-                      // Theme changes would be implemented here
-                    },
+                  ListTile(
+                    leading: Icon(Icons.palette, color: AppTheme.accent),
+                    title: const Text('Theme Mode'),
+                    subtitle: const Text('Dark / Night (red)'),
+                    trailing: SegmentedButton<AppThemeMode>(
+                      segments: const [
+                        ButtonSegment<AppThemeMode>(
+                          value: AppThemeMode.dark,
+                          label: Text('Dark'),
+                          icon: Icon(Icons.dark_mode),
+                        ),
+                        ButtonSegment<AppThemeMode>(
+                          value: AppThemeMode.night,
+                          label: Text('Night'),
+                          icon: Icon(Icons.nights_stay),
+                        ),
+                      ],
+                      selected: {themeState.mode},
+                      onSelectionChanged: (selection) {
+                        context.read<ThemeCubit>().setThemeMode(selection.first);
+                      },
+                    ),
                   ),
                   
                   const Divider(height: 1),
@@ -127,10 +139,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     secondary: Icon(Icons.contrast, color: AppTheme.accent),
                     title: const Text('High Contrast'),
                     subtitle: const Text('Enhanced visibility for outdoor use'),
-                    value: _highContrast,
+                    value: themeState.highContrast,
                     activeColor: AppTheme.primary,
                     onChanged: (value) {
-                      setState(() => _highContrast = value);
+                      context.read<ThemeCubit>().setHighContrast(value);
                     },
                   ),
                 ],

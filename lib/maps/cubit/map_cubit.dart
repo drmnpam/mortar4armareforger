@@ -37,7 +37,10 @@ class MapCubit extends Cubit<MapState> {
   
   /// Load a map
   Future<void> loadMap(String mapName) async {
-    emit(state.copyWith(isLoading: true));
+    emit(state.copyWith(
+      isLoading: true,
+      clearError: true,
+    ));
     
     final metadata = MapLoader.getMetadata(mapName);
     if (metadata == null) {
@@ -70,6 +73,8 @@ class MapCubit extends Cubit<MapState> {
       markers: List.from(_markerManager.markers),
       hasMortar: _markerManager.mortarMarker != null,
       hasTarget: _markerManager.targetMarker != null,
+      clearError: true,
+      clearSolution: true,
     ));
     
     await _storage.setPreferredMap(mapName);
@@ -104,7 +109,7 @@ class MapCubit extends Cubit<MapState> {
     _markerManager.removeMarker(id);
     _saveState();
     _updateState();
-    emit(state.copyWith(solution: null));
+    emit(state.copyWith(clearSolution: true));
   }
   
   /// Clear all markers
@@ -112,7 +117,10 @@ class MapCubit extends Cubit<MapState> {
     _markerManager.clear();
     _saveState();
     _updateState();
-    emit(state.copyWith(solution: null));
+    emit(state.copyWith(
+      clearSolution: true,
+      clearError: true,
+    ));
   }
   
   /// Update map zoom level
@@ -185,14 +193,14 @@ class MapCubit extends Cubit<MapState> {
       
       emit(state.copyWith(
         solution: solution,
-        error: null,
+        clearError: true,
       ));
       
       // Save to history
       _storage.addToHistory(solution, mortar.position, target.position);
     } on BallisticException catch (e) {
       emit(state.copyWith(
-        solution: null,
+        clearSolution: true,
         error: e.message,
       ));
     }

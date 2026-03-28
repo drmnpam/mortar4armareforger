@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 
@@ -232,7 +234,7 @@ class MarkerManager {
     
     final dx = target.position.x - mortar.position.x;
     final dy = target.position.y - mortar.position.y;
-    return (dx * dx + dy * dy);
+    return math.sqrt(dx * dx + dy * dy);
   }
   
   /// Convert markers to list

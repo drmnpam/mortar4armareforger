@@ -151,6 +151,49 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       ));
     }
   }
+
+  /// Calculate firing solution from direct distance and altitudes.
+  /// This is used by the non-map workflow where user does not enter XY points.
+  void calculateFromDistance({
+    required double distance,
+    required double mortarAltitude,
+    required double targetAltitude,
+  }) {
+    if (distance <= 0) {
+      emit(state.copyWith(
+        errorMessage: 'Set distance greater than 0',
+        solution: null,
+      ));
+      return;
+    }
+
+    final mortarPosition = Position(x: 0, y: 0, altitude: mortarAltitude);
+    final targetPosition = Position(x: 0, y: distance, altitude: targetAltitude);
+
+    try {
+      final solution = BallisticSolver.calculate(
+        mortarPosition: mortarPosition,
+        targetPosition: targetPosition,
+        mortarType: state.selectedMortar,
+        preferredCharge: state.autoCharge ? null : state.preferredCharge,
+      );
+
+      emit(state.copyWith(
+        mortarPosition: mortarPosition,
+        targetPosition: targetPosition,
+        solution: solution,
+        errorMessage: null,
+      ));
+
+      _storage?.setLastMortarPosition(mortarPosition);
+      _storage?.addToHistory(solution, mortarPosition, targetPosition);
+    } on BallisticException catch (e) {
+      emit(state.copyWith(
+        errorMessage: e.message,
+        solution: null,
+      ));
+    }
+  }
   
   /// Clear current solution
   void clear() {

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../../app/theme/app_theme.dart';
 
 /// Coordinate input field with military styling
-class CoordinateInput extends StatelessWidget {
+class CoordinateInput extends StatefulWidget {
   final String label;
   final double value;
   final Function(double) onChanged;
@@ -22,34 +22,72 @@ class CoordinateInput extends StatelessWidget {
   });
 
   @override
+  State<CoordinateInput> createState() => _CoordinateInputState();
+}
+
+class _CoordinateInputState extends State<CoordinateInput> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _formatValue(widget.value));
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant CoordinateInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (_focusNode.hasFocus) {
+      return;
+    }
+
+    final next = _formatValue(widget.value);
+    if (_controller.text != next) {
+      _controller.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+    }
+  }
+
+  String _formatValue(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toString();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = TextEditingController(
-      text: value != 0 ? value.toStringAsFixed(0) : '',
-    );
-    
-    // Dispose controller when widget is disposed
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return TextField(
-          controller: controller,
-          readOnly: readOnly,
-          keyboardType: TextInputType.number,
-          textInputAction: TextInputAction.next,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      readOnly: widget.readOnly,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+      textInputAction: TextInputAction.next,
+      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontFamily: 'monospace',
             color: AppTheme.textPrimary,
           ),
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hintText,
-            suffixText: suffix,
-            suffixStyle: TextStyle(color: AppTheme.textMuted),
-          ),
-          onChanged: (value) {
-            final parsed = double.tryParse(value) ?? 0;
-            onChanged(parsed);
-          },
-        );
+      decoration: InputDecoration(
+        labelText: widget.label,
+        hintText: widget.hintText,
+        suffixText: widget.suffix,
+        suffixStyle: TextStyle(color: AppTheme.textMuted),
+      ),
+      onChanged: (value) {
+        final parsed = double.tryParse(value) ?? 0;
+        widget.onChanged(parsed);
       },
     );
   }
