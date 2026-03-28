@@ -17,20 +17,18 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late StorageService _storage;
   String _preferredMortar = 'M252';
-  bool _autoCharge = true;
-  
+
   @override
   void initState() {
     super.initState();
     _storage = StorageService();
     _loadSettings();
   }
-  
+
   void _loadSettings() async {
     await _storage.initialize();
     setState(() {
       _preferredMortar = _storage.getPreferredMortar();
-      _autoCharge = _storage.getAutoCharge();
     });
   }
 
@@ -38,7 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final mortars = BallisticTables.availableMortars;
     final themeState = context.watch<ThemeCubit>().state;
-    
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -54,7 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             // Section: Ballistics
             _SectionHeader('BALLISTICS'),
-            
+
             Card(
               child: Column(
                 children: [
@@ -71,7 +69,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       items: mortars.map((m) {
                         return DropdownMenuItem(
                           value: m,
-                          child: Text(m, style: TextStyle(color: AppTheme.textPrimary)),
+                          child: Text(m,
+                              style: TextStyle(color: AppTheme.textPrimary)),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -82,30 +81,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ),
                   ),
-                  
+
                   const Divider(height: 1),
-                  
-                  // Auto charge
-                  SwitchListTile(
-                    secondary: Icon(Icons.bolt, color: AppTheme.accent),
-                    title: const Text('Auto Charge Selection'),
-                    subtitle: const Text('Automatically select optimal charge'),
-                    value: _autoCharge,
-                    activeColor: AppTheme.primary,
-                    onChanged: (value) {
-                      setState(() => _autoCharge = value);
-                      _storage.setAutoCharge(value);
-                    },
+                  ListTile(
+                    leading: Icon(Icons.bolt, color: AppTheme.accent),
+                    title: const Text('Charge Selection'),
+                    subtitle: const Text('Always AUTO'),
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Section: Display
             _SectionHeader('DISPLAY'),
-            
+
             Card(
               child: Column(
                 children: [
@@ -128,13 +119,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                       selected: {themeState.mode},
                       onSelectionChanged: (selection) {
-                        context.read<ThemeCubit>().setThemeMode(selection.first);
+                        context
+                            .read<ThemeCubit>()
+                            .setThemeMode(selection.first);
                       },
                     ),
                   ),
-                  
                   const Divider(height: 1),
-                  
                   SwitchListTile(
                     secondary: Icon(Icons.contrast, color: AppTheme.accent),
                     title: const Text('High Contrast'),
@@ -148,12 +139,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Section: Data Management
             _SectionHeader('DATA MANAGEMENT'),
-            
+
             Card(
               child: Column(
                 children: [
@@ -164,9 +155,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _exportData,
                   ),
-                  
                   const Divider(height: 1),
-                  
                   ListTile(
                     leading: Icon(Icons.restore, color: AppTheme.accent),
                     title: const Text('Import Data'),
@@ -174,24 +163,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _importData,
                   ),
-                  
                   const Divider(height: 1),
-                  
                   ListTile(
                     leading: Icon(Icons.delete_forever, color: AppTheme.danger),
-                    title: Text('Clear All Data', style: TextStyle(color: AppTheme.danger)),
-                    subtitle: const Text('Delete all saved targets and settings'),
+                    title: Text('Clear All Data',
+                        style: TextStyle(color: AppTheme.danger)),
+                    subtitle:
+                        const Text('Delete all saved targets and settings'),
                     onTap: _confirmClearData,
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Section: About
             _SectionHeader('ABOUT'),
-            
+
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -207,15 +196,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           children: [
                             Text(
                               'Mortar Calculator',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
                             Text(
                               'Version 1.0.0',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.textMuted,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: AppTheme.textMuted,
+                                  ),
                             ),
                           ],
                         ),
@@ -226,15 +221,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'A ballistic calculator for Arma Reforger. '
                       'Designed for offline use in the field.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
+                            color: AppTheme.textSecondary,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Supported mortars: ${mortars.join(", ")}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textMuted,
-                      ),
+                            color: AppTheme.textMuted,
+                          ),
                     ),
                   ],
                 ),
@@ -250,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final data = await _storage.exportData();
       await Clipboard.setData(ClipboardData(text: data));
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Data copied to clipboard')),
@@ -267,12 +262,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _importData() {
     final controller = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
-        title: Text('Import Data', style: TextStyle(color: AppTheme.textPrimary)),
+        title:
+            Text('Import Data', style: TextStyle(color: AppTheme.textPrimary)),
         content: TextField(
           controller: controller,
           maxLines: 5,
@@ -285,7 +281,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('CANCEL', style: TextStyle(color: AppTheme.textSecondary)),
+            child:
+                Text('CANCEL', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -318,7 +315,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
-        title: Text('Clear All Data?', style: TextStyle(color: AppTheme.danger)),
+        title:
+            Text('Clear All Data?', style: TextStyle(color: AppTheme.danger)),
         content: Text(
           'This will permanently delete all saved targets, settings, and calculation history.',
           style: TextStyle(color: AppTheme.textSecondary),
@@ -326,7 +324,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('CANCEL', style: TextStyle(color: AppTheme.textSecondary)),
+            child:
+                Text('CANCEL', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -360,9 +359,9 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: AppTheme.accent,
-          letterSpacing: 1.5,
-        ),
+              color: AppTheme.accent,
+              letterSpacing: 1.5,
+            ),
       ),
     );
   }

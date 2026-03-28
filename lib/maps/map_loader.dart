@@ -33,9 +33,22 @@ class MapLoader {
       _loadBuiltInMaps();
     }
 
+    _ensureBuiltInMapsPresent();
+
     // Load metadata for each map
-    for (final mapName in _availableMaps) {
-      await _loadMetadata(mapName);
+    final snapshot = List<String>.from(_availableMaps);
+    for (final mapName in snapshot) {
+      final loaded = await _loadMetadata(mapName);
+      if (loaded == null && !_customMapImagePaths.containsKey(mapName)) {
+        _availableMaps.remove(mapName);
+      }
+    }
+
+    if (_availableMaps.isEmpty) {
+      _loadBuiltInMaps();
+      for (final mapName in _availableMaps) {
+        await _loadMetadata(mapName);
+      }
     }
   }
 
@@ -165,11 +178,16 @@ class MapLoader {
 
   /// Built-in maps for when no assets are available
   static void _loadBuiltInMaps() {
-    _availableMaps.addAll([
-      'everon',
-      'arland',
-      'kolguev',
-    ]);
+    _ensureBuiltInMapsPresent();
+  }
+
+  static void _ensureBuiltInMapsPresent() {
+    const builtIns = ['everon', 'arland', 'kolguev'];
+    for (final mapName in builtIns) {
+      if (!_availableMaps.contains(mapName)) {
+        _availableMaps.add(mapName);
+      }
+    }
   }
 
   /// Create default metadata for a map

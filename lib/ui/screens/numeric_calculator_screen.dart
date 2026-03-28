@@ -13,7 +13,8 @@ class NumericCalculatorScreen extends StatefulWidget {
   const NumericCalculatorScreen({super.key});
 
   @override
-  State<NumericCalculatorScreen> createState() => _NumericCalculatorScreenState();
+  State<NumericCalculatorScreen> createState() =>
+      _NumericCalculatorScreenState();
 }
 
 class _NumericCalculatorScreenState extends State<NumericCalculatorScreen> {
@@ -55,18 +56,20 @@ class _NumericCalculatorScreenState extends State<NumericCalculatorScreen> {
                 children: [
                   // Mortar Type Selector
                   _buildMortarSelector(context, state),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Mortar Position Card
                   _buildMortarCard(context),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Calculate Button
                   ElevatedButton.icon(
                     onPressed: canCalculate
-                        ? () => context.read<BallisticsCubit>().calculateFromDistance(
+                        ? () => context
+                            .read<BallisticsCubit>()
+                            .calculateFromDistance(
                               distance: _distance,
                               mortarAltitude: _mortarAltitude,
                               targetAltitude: _targetAltitude,
@@ -78,9 +81,9 @@ class _NumericCalculatorScreenState extends State<NumericCalculatorScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Error Message
                   if (state.errorMessage != null)
                     Container(
@@ -103,9 +106,9 @@ class _NumericCalculatorScreenState extends State<NumericCalculatorScreen> {
                         ],
                       ),
                     ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Firing Solution
                   if (state.solution != null)
                     FiringSolutionCard(solution: state.solution!),
@@ -120,7 +123,7 @@ class _NumericCalculatorScreenState extends State<NumericCalculatorScreen> {
 
   Widget _buildMortarSelector(BuildContext context, BallisticsState state) {
     final mortars = BallisticTables.availableMortars;
-    
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -139,33 +142,23 @@ class _NumericCalculatorScreenState extends State<NumericCalculatorScreen> {
                 return ChoiceChip(
                   label: Text(mortar),
                   selected: isSelected,
-                  onSelected: (_) => context.read<BallisticsCubit>().setMortarType(mortar),
+                  onSelected: (_) =>
+                      context.read<BallisticsCubit>().setMortarType(mortar),
                   selectedColor: AppTheme.primary,
                   labelStyle: TextStyle(
                     color: isSelected ? Colors.black : AppTheme.textPrimary,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 );
               }).toList(),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Text(
-                  'CHARGE:',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            Text(
+              'CHARGE: AUTO',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: Text(state.autoCharge ? 'AUTO' : 'MANUAL'),
-                  selected: state.autoCharge,
-                  onSelected: (_) => context.read<BallisticsCubit>().toggleAutoCharge(),
-                  selectedColor: AppTheme.accent.withOpacity(0.3),
-                  checkmarkColor: AppTheme.accent,
-                ),
-              ],
             ),
           ],
         ),

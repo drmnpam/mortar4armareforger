@@ -8,29 +8,27 @@ part 'ballistics_state.dart';
 
 class BallisticsCubit extends Cubit<BallisticsState> {
   final StorageService? _storage;
-  
-  BallisticsCubit({StorageService? storage}) 
-    : _storage = storage,
-      super(BallisticsState.initial()) {
+
+  BallisticsCubit({StorageService? storage})
+      : _storage = storage,
+        super(BallisticsState.initial()) {
     _initialize();
   }
-  
+
   void _initialize() {
     BallisticTables.initialize();
     _loadPreferences();
   }
-  
+
   void _loadPreferences() {
     if (_storage != null) {
       final mortar = _storage!.getPreferredMortar();
-      final autoCharge = _storage!.getAutoCharge();
       emit(state.copyWith(
         selectedMortar: mortar,
-        autoCharge: autoCharge,
       ));
     }
   }
-  
+
   /// Set mortar position
   void setMortarPosition(Position position) {
     emit(state.copyWith(
@@ -39,7 +37,7 @@ class BallisticsCubit extends Cubit<BallisticsState> {
     ));
     _storage?.setLastMortarPosition(position);
   }
-  
+
   /// Set target position
   void setTargetPosition(Position position) {
     emit(state.copyWith(
@@ -47,43 +45,43 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       solution: null,
     ));
   }
-  
+
   /// Set mortar X coordinate
   void setMortarX(double value) {
     final current = state.mortarPosition;
     setMortarPosition(current.copyWith(x: value));
   }
-  
+
   /// Set mortar Y coordinate
   void setMortarY(double value) {
     final current = state.mortarPosition;
     setMortarPosition(current.copyWith(y: value));
   }
-  
+
   /// Set mortar altitude
   void setMortarAltitude(double value) {
     final current = state.mortarPosition;
     setMortarPosition(current.copyWith(altitude: value));
   }
-  
+
   /// Set target X coordinate
   void setTargetX(double value) {
     final current = state.targetPosition;
     setTargetPosition(current.copyWith(x: value));
   }
-  
+
   /// Set target Y coordinate
   void setTargetY(double value) {
     final current = state.targetPosition;
     setTargetPosition(current.copyWith(y: value));
   }
-  
+
   /// Set target altitude
   void setTargetAltitude(double value) {
     final current = state.targetPosition;
     setTargetPosition(current.copyWith(altitude: value));
   }
-  
+
   /// Set mortar type
   void setMortarType(String type) {
     emit(state.copyWith(
@@ -92,25 +90,7 @@ class BallisticsCubit extends Cubit<BallisticsState> {
     ));
     _storage?.setPreferredMortar(type);
   }
-  
-  /// Set specific charge (null for auto)
-  void setCharge(int? charge) {
-    emit(state.copyWith(
-      preferredCharge: charge,
-      solution: null,
-    ));
-  }
-  
-  /// Toggle auto charge selection
-  void toggleAutoCharge() {
-    final newValue = !state.autoCharge;
-    emit(state.copyWith(
-      autoCharge: newValue,
-      preferredCharge: newValue ? null : 0,
-    ));
-    _storage?.setAutoCharge(newValue);
-  }
-  
+
   /// Calculate firing solution
   void calculate() {
     if (state.mortarPosition.x == 0 && state.mortarPosition.y == 0) {
@@ -120,7 +100,7 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       ));
       return;
     }
-    
+
     if (state.targetPosition.x == 0 && state.targetPosition.y == 0) {
       emit(state.copyWith(
         errorMessage: 'Set target position',
@@ -128,22 +108,22 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       ));
       return;
     }
-    
+
     try {
       final solution = BallisticSolver.calculate(
         mortarPosition: state.mortarPosition,
         targetPosition: state.targetPosition,
         mortarType: state.selectedMortar,
-        preferredCharge: state.autoCharge ? null : state.preferredCharge,
       );
-      
+
       emit(state.copyWith(
         solution: solution,
         errorMessage: null,
       ));
-      
+
       // Save to history
-      _storage?.addToHistory(solution, state.mortarPosition, state.targetPosition);
+      _storage?.addToHistory(
+          solution, state.mortarPosition, state.targetPosition);
     } on BallisticException catch (e) {
       emit(state.copyWith(
         errorMessage: e.message,
@@ -168,14 +148,14 @@ class BallisticsCubit extends Cubit<BallisticsState> {
     }
 
     final mortarPosition = Position(x: 0, y: 0, altitude: mortarAltitude);
-    final targetPosition = Position(x: 0, y: distance, altitude: targetAltitude);
+    final targetPosition =
+        Position(x: 0, y: distance, altitude: targetAltitude);
 
     try {
       final solution = BallisticSolver.calculate(
         mortarPosition: mortarPosition,
         targetPosition: targetPosition,
         mortarType: state.selectedMortar,
-        preferredCharge: state.autoCharge ? null : state.preferredCharge,
       );
 
       emit(state.copyWith(
@@ -194,7 +174,7 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       ));
     }
   }
-  
+
   /// Clear current solution
   void clear() {
     emit(state.copyWith(
@@ -202,7 +182,7 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       errorMessage: null,
     ));
   }
-  
+
   /// Swap mortar and target positions
   void swapPositions() {
     emit(state.copyWith(
@@ -211,13 +191,13 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       solution: null,
     ));
   }
-  
+
   /// Calculate all charge options
   List<FiringSolution> getAllChargeSolutions() {
     if (state.mortarPosition.x == 0 || state.targetPosition.x == 0) {
       return [];
     }
-    
+
     try {
       return BallisticSolver.calculateAllCharges(
         mortarPosition: state.mortarPosition,
@@ -228,10 +208,10 @@ class BallisticsCubit extends Cubit<BallisticsState> {
       return [];
     }
   }
-  
+
   /// Check if solution is valid
   bool get hasValidInput {
     return (state.mortarPosition.x != 0 || state.mortarPosition.y != 0) &&
-           (state.targetPosition.x != 0 || state.targetPosition.y != 0);
+        (state.targetPosition.x != 0 || state.targetPosition.y != 0);
   }
 }
