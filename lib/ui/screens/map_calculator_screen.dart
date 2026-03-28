@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme/app_theme.dart';
+import '../../ballistics/ballistics.dart';
 import '../../maps/cubit/map_cubit.dart';
 import '../../maps/maps.dart';
 import '../../models/models.dart';
@@ -37,7 +40,13 @@ class MapCalculatorScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.tune),
             tooltip: 'Grid calibration',
-            onPressed: () => _showCalibrationDialog(context, context.read<MapCubit>().state),
+            onPressed: () =>
+                _showCalibrationDialog(context, context.read<MapCubit>().state),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            tooltip: 'Add custom map',
+            onPressed: () => _showAddCustomMapDialog(context),
           ),
           PopupMenuButton<String>(
             onSelected: (value) => context.read<MapCubit>().loadMap(value),
@@ -98,9 +107,19 @@ class MapCalculatorScreen extends StatelessWidget {
                 panY: state.panY,
                 hasMortar: state.hasMortar,
                 hasTarget: state.hasTarget,
-                onTapPosition: (position) => _handleTap(context, state, position),
+                selectedMortar: state.selectedMortar,
+                onTapPosition: (position) =>
+                    _handleTap(context, state, position),
                 onLongPressPosition: (position) {
                   context.read<MapCubit>().addMortar(position);
+                },
+                onViewChanged: (zoom, panX, panY) {
+                  context.read<MapCubit>().setView(
+                        zoom: zoom,
+                        panX: panX,
+                        panY: panY,
+                        persist: true,
+                      );
                 },
                 calibrationOffsetX: state.calibrationOffsetX,
                 calibrationOffsetY: state.calibrationOffsetY,
@@ -118,7 +137,8 @@ class MapCalculatorScreen extends StatelessWidget {
                   solution: state.solution,
                   selectedMortar: state.selectedMortar,
                   availableMortars: context.read<MapCubit>().availableMortars,
-                  onMortarSelected: (type) => context.read<MapCubit>().setMortarType(type),
+                  onMortarSelected: (type) =>
+                      context.read<MapCubit>().setMortarType(type),
                   onClear: () => context.read<MapCubit>().clearMarkers(),
                 ),
               ),
@@ -129,13 +149,23 @@ class MapCalculatorScreen extends StatelessWidget {
                   children: [
                     FloatingActionButton.small(
                       heroTag: 'zoom_in',
-                      onPressed: () => context.read<MapCubit>().setZoom(state.zoomLevel * 1.2),
+                      onPressed: () => context.read<MapCubit>().setView(
+                            zoom: state.zoomLevel * 1.2,
+                            panX: state.panX,
+                            panY: state.panY,
+                            persist: true,
+                          ),
                       child: const Icon(Icons.add),
                     ),
                     const SizedBox(height: 8),
                     FloatingActionButton.small(
                       heroTag: 'zoom_out',
-                      onPressed: () => context.read<MapCubit>().setZoom(state.zoomLevel / 1.2),
+                      onPressed: () => context.read<MapCubit>().setView(
+                            zoom: state.zoomLevel / 1.2,
+                            panX: state.panX,
+                            panY: state.panY,
+                            persist: true,
+                          ),
                       child: const Icon(Icons.remove),
                     ),
                   ],
@@ -157,6 +187,156 @@ class MapCalculatorScreen extends StatelessWidget {
     }
 
     cubit.addTarget(position);
+  }
+
+  Future<void> _showAddCustomMapDialog(BuildContext context) async {
+    final cubit = context.read<MapCubit>();
+    final nameController = TextEditingController();
+    final worldSizeController = TextEditingController(text: '10240');
+    String? imagePath;
+    String? localError;
+    var isSaving = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> pickImage() async {
+              final result = await FilePicker.platform.pickFiles(
+                type: FileType.image,
+                allowMultiple: false,
+              );
+              final path = result?.files.single.path;
+              if (path == null || path.isEmpty) {
+                return;
+              }
+              setDialogState(() {
+                imagePath = path;
+                localError = null;
+              });
+            }
+
+            Future<void> submit() async {
+              final name = nameController.text.trim();
+              final parsedWorld =
+                  double.tryParse(worldSizeController.text.trim());
+              if (name.isEmpty || imagePath == null) {
+                setDialogState(() {
+                  localError = 'Enter map name and choose image';
+                });
+                return;
+              }
+              if (parsedWorld == null || parsedWorld <= 0) {
+                setDialogState(() {
+                  localError = 'World size must be a positive number';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                isSaving = true;
+                localError = null;
+              });
+
+              final ok = await cubit.addCustomMap(
+                name: name,
+                imagePath: imagePath!,
+                worldSize: parsedWorld,
+              );
+
+              if (ok && dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+                return;
+              }
+
+              setDialogState(() {
+                isSaving = false;
+                localError = cubit.state.error ?? 'Failed to add map';
+              });
+            }
+
+            return AlertDialog(
+              backgroundColor: AppTheme.surface,
+              title: Text(
+                'ADD CUSTOM MAP',
+                style: TextStyle(color: AppTheme.textPrimary),
+              ),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      style: TextStyle(color: AppTheme.textPrimary),
+                      decoration: InputDecoration(
+                        labelText: 'Map name',
+                        labelStyle: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: worldSizeController,
+                      style: TextStyle(color: AppTheme.textPrimary),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'World size (meters)',
+                        labelStyle: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            imagePath == null
+                                ? 'No image selected'
+                                : imagePath!.split(RegExp(r'[\\/]')).last,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton(
+                          onPressed: isSaving ? null : pickImage,
+                          child: const Text('CHOOSE IMAGE'),
+                        ),
+                      ],
+                    ),
+                    if (localError != null) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          localError!,
+                          style: TextStyle(color: AppTheme.danger),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      isSaving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('CANCEL'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving ? null : submit,
+                  child: Text(isSaving ? 'ADDING...' : 'ADD MAP'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+    worldSizeController.dispose();
   }
 
   void _showCalibrationDialog(BuildContext context, MapState state) {
@@ -225,7 +405,7 @@ class MapCalculatorScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Use buttons to align grid. Apply keeps this dialog open.',
+                      'Grid updates are applied instantly. Apply will close dialog.',
                       style: TextStyle(
                         color: AppTheme.textSecondary,
                         fontSize: 12,
@@ -277,25 +457,31 @@ class MapCalculatorScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text('Move Grid', style: TextStyle(color: AppTheme.textSecondary)),
+                    Text('Move Grid',
+                        style: TextStyle(color: AppTheme.textSecondary)),
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        nudgeButton(label: 'Left', onPressed: () => nudge(dx: -1)),
+                        nudgeButton(
+                            label: 'Left', onPressed: () => nudge(dx: -1)),
                         const SizedBox(width: 8),
-                        nudgeButton(label: 'Right', onPressed: () => nudge(dx: 1)),
+                        nudgeButton(
+                            label: 'Right', onPressed: () => nudge(dx: 1)),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        nudgeButton(label: 'Up', onPressed: () => nudge(dy: -1)),
+                        nudgeButton(
+                            label: 'Up', onPressed: () => nudge(dy: -1)),
                         const SizedBox(width: 8),
-                        nudgeButton(label: 'Down', onPressed: () => nudge(dy: 1)),
+                        nudgeButton(
+                            label: 'Down', onPressed: () => nudge(dy: 1)),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text('Resize Grid', style: TextStyle(color: AppTheme.textSecondary)),
+                    Text('Resize Grid',
+                        style: TextStyle(color: AppTheme.textSecondary)),
                     const SizedBox(height: 6),
                     Row(
                       children: [
@@ -313,17 +499,21 @@ class MapCalculatorScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        nudgeButton(label: 'Width -', onPressed: () => nudge(dsx: -1)),
+                        nudgeButton(
+                            label: 'Width -', onPressed: () => nudge(dsx: -1)),
                         const SizedBox(width: 8),
-                        nudgeButton(label: 'Width +', onPressed: () => nudge(dsx: 1)),
+                        nudgeButton(
+                            label: 'Width +', onPressed: () => nudge(dsx: 1)),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        nudgeButton(label: 'Height -', onPressed: () => nudge(dsy: -1)),
+                        nudgeButton(
+                            label: 'Height -', onPressed: () => nudge(dsy: -1)),
                         const SizedBox(width: 8),
-                        nudgeButton(label: 'Height +', onPressed: () => nudge(dsy: 1)),
+                        nudgeButton(
+                            label: 'Height +', onPressed: () => nudge(dsy: 1)),
                       ],
                     ),
                   ],
@@ -347,7 +537,10 @@ class MapCalculatorScreen extends StatelessWidget {
                   child: const Text('CLOSE'),
                 ),
                 ElevatedButton(
-                  onPressed: applyCurrent,
+                  onPressed: () {
+                    applyCurrent();
+                    Navigator.pop(dialogContext);
+                  },
                   child: const Text('APPLY'),
                 ),
               ],
@@ -359,7 +552,7 @@ class MapCalculatorScreen extends StatelessWidget {
   }
 }
 
-class _MapCanvas extends StatelessWidget {
+class _MapCanvas extends StatefulWidget {
   final MapMetadata metadata;
   final String? mapImagePath;
   final List<MapMarker> markers;
@@ -370,8 +563,10 @@ class _MapCanvas extends StatelessWidget {
   final double panY;
   final bool hasMortar;
   final bool hasTarget;
+  final String selectedMortar;
   final ValueChanged<Position> onTapPosition;
   final ValueChanged<Position> onLongPressPosition;
+  final void Function(double zoom, double panX, double panY) onViewChanged;
   final double calibrationOffsetX;
   final double calibrationOffsetY;
   final double calibrationScaleX;
@@ -388,8 +583,10 @@ class _MapCanvas extends StatelessWidget {
     required this.panY,
     required this.hasMortar,
     required this.hasTarget,
+    required this.selectedMortar,
     required this.onTapPosition,
     required this.onLongPressPosition,
+    required this.onViewChanged,
     required this.calibrationOffsetX,
     required this.calibrationOffsetY,
     required this.calibrationScaleX,
@@ -397,88 +594,138 @@ class _MapCanvas extends StatelessWidget {
   });
 
   @override
+  State<_MapCanvas> createState() => _MapCanvasState();
+}
+
+class _MapCanvasState extends State<_MapCanvas> {
+  late final TransformationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TransformationController(_stateToMatrix());
+  }
+
+  @override
+  void didUpdateWidget(covariant _MapCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final desired = _stateToMatrix();
+    if (!_isMatrixClose(_controller.value, desired)) {
+      _controller.value = desired;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Matrix4 _stateToMatrix() {
+    return Matrix4.identity()
+      ..translate(widget.panX, widget.panY)
+      ..scale(widget.zoomLevel);
+  }
+
+  bool _isMatrixClose(Matrix4 a, Matrix4 b) {
+    final sa = a.storage;
+    final sb = b.storage;
+    for (var i = 0; i < 16; i++) {
+      if ((sa[i] - sb[i]).abs() > 0.001) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final mapSize = constraints.biggest.shortestSide;
-        final mapOriginX = (constraints.maxWidth - mapSize) / 2;
-        final mapOriginY = (constraints.maxHeight - mapSize) / 2;
+        final mapSize = math.max(constraints.maxWidth, constraints.maxHeight);
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapUp: (details) {
-            final world = _screenToWorld(
-              screenPosition: details.localPosition,
-              mapSize: mapSize,
-              mapOriginX: mapOriginX,
-              mapOriginY: mapOriginY,
-            );
-            if (world != null) {
-              onTapPosition(world);
-            }
-          },
-          onLongPressStart: (details) {
-            final world = _screenToWorld(
-              screenPosition: details.localPosition,
-              mapSize: mapSize,
-              mapOriginX: mapOriginX,
-              mapOriginY: mapOriginY,
-            );
-            if (world != null) {
-              onLongPressPosition(world);
-            }
-          },
-          onPanUpdate: (details) {
-            context.read<MapCubit>().setPan(
-                  panX + details.delta.dx,
-                  panY + details.delta.dy,
-                );
-          },
-          child: Container(
-            color: AppTheme.background,
-            child: ClipRect(
-              child: Stack(
-                children: [
-                  Transform(
-                    transform: Matrix4.identity()
-                      ..translate(mapOriginX + panX, mapOriginY + panY)
-                      ..scale(zoomLevel),
+        Position? sceneToWorld(Offset scenePosition) {
+          final localX = scenePosition.dx;
+          final localY = scenePosition.dy;
+          if (localX < 0 ||
+              localY < 0 ||
+              localX > mapSize ||
+              localY > mapSize) {
+            return null;
+          }
+
+          final normalizedX = localX / mapSize;
+          final normalizedY = localY / mapSize;
+          final correctedX = ((normalizedX - widget.calibrationOffsetX) /
+                  widget.calibrationScaleX)
+              .clamp(0.0, 1.0);
+          final correctedY = ((normalizedY - widget.calibrationOffsetY) /
+                  widget.calibrationScaleY)
+              .clamp(0.0, 1.0);
+
+          final worldX = correctedX * widget.metadata.worldSize;
+          final worldY = (1 - correctedY) * widget.metadata.worldSize;
+          return Position(x: worldX, y: worldY);
+        }
+
+        return Container(
+          color: AppTheme.background,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: (details) {
+                    final scene = _controller.toScene(details.localPosition);
+                    final world = sceneToWorld(scene);
+                    if (world != null) {
+                      widget.onTapPosition(world);
+                    }
+                  },
+                  onLongPressStart: (details) {
+                    final scene = _controller.toScene(details.localPosition);
+                    final world = sceneToWorld(scene);
+                    if (world != null) {
+                      widget.onLongPressPosition(world);
+                    }
+                  },
+                  child: InteractiveViewer(
+                    transformationController: _controller,
+                    panEnabled: true,
+                    scaleEnabled: true,
+                    clipBehavior: Clip.none,
+                    constrained: false,
+                    minScale: 0.5,
+                    maxScale: 8.0,
+                    boundaryMargin: const EdgeInsets.all(10000),
+                    alignment: Alignment.center,
+                    onInteractionEnd: (_) {
+                      final matrix = _controller.value.storage;
+                      widget.onViewChanged(
+                        _controller.value.getMaxScaleOnAxis(),
+                        matrix[12],
+                        matrix[13],
+                      );
+                    },
                     child: SizedBox(
                       width: mapSize,
                       height: mapSize,
                       child: Stack(
                         children: [
-                          Positioned.fill(
-                            child: mapImagePath == null
-                                ? Container(color: AppTheme.surfaceLight)
-                                : Image.asset(
-                                    mapImagePath!,
-                                    fit: BoxFit.fill,
-                                    filterQuality: FilterQuality.medium,
-                                    errorBuilder: (context, _, __) {
-                                      return Container(
-                                        color: AppTheme.surfaceLight,
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          'Map image unavailable',
-                                          style: TextStyle(color: AppTheme.textSecondary),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                          ),
+                          Positioned.fill(child: _buildMapImage()),
                           Positioned.fill(
                             child: CustomPaint(
                               painter: _MapOverlayPainter(
-                                metadata: metadata,
-                                markers: markers,
-                                showGrid: showGrid,
-                                showDistanceLine: showDistanceLine,
-                                zoomLevel: zoomLevel,
-                                calibrationOffsetX: calibrationOffsetX,
-                                calibrationOffsetY: calibrationOffsetY,
-                                calibrationScaleX: calibrationScaleX,
-                                calibrationScaleY: calibrationScaleY,
+                                metadata: widget.metadata,
+                                markers: widget.markers,
+                                showGrid: widget.showGrid,
+                                showDistanceLine: widget.showDistanceLine,
+                                zoomLevel: widget.zoomLevel,
+                                selectedMortar: widget.selectedMortar,
+                                calibrationOffsetX: widget.calibrationOffsetX,
+                                calibrationOffsetY: widget.calibrationOffsetY,
+                                calibrationScaleX: widget.calibrationScaleX,
+                                calibrationScaleY: widget.calibrationScaleY,
                               ),
                             ),
                           ),
@@ -486,44 +733,54 @@ class _MapCanvas extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    right: 12,
-                    child: _TapHint(hasMortar: hasMortar, hasTarget: hasTarget),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Positioned(
+                top: 12,
+                left: 12,
+                right: 12,
+                child: _TapHint(
+                    hasMortar: widget.hasMortar, hasTarget: widget.hasTarget),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Position? _screenToWorld({
-    required Offset screenPosition,
-    required double mapSize,
-    required double mapOriginX,
-    required double mapOriginY,
-  }) {
-    final localX = (screenPosition.dx - mapOriginX - panX) / zoomLevel;
-    final localY = (screenPosition.dy - mapOriginY - panY) / zoomLevel;
-
-    if (localX < 0 || localY < 0 || localX > mapSize || localY > mapSize) {
-      return null;
+  Widget _buildMapImage() {
+    if (widget.mapImagePath == null) {
+      return Container(color: AppTheme.surfaceLight);
     }
 
-    final normalizedX = localX / mapSize;
-    final normalizedY = localY / mapSize;
-    final correctedX =
-        ((normalizedX - calibrationOffsetX) / calibrationScaleX).clamp(0.0, 1.0);
-    final correctedY =
-        ((normalizedY - calibrationOffsetY) / calibrationScaleY).clamp(0.0, 1.0);
+    final path = widget.mapImagePath!;
+    if (path.startsWith('assets/')) {
+      return Image.asset(
+        path,
+        fit: BoxFit.fill,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (context, _, __) => _mapUnavailable(),
+      );
+    }
 
-    final worldX = correctedX * metadata.worldSize;
-    final worldY = (1 - correctedY) * metadata.worldSize;
-    return Position(x: worldX, y: worldY);
+    return Image.file(
+      File(path),
+      fit: BoxFit.fill,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (context, _, __) => _mapUnavailable(),
+    );
+  }
+
+  Widget _mapUnavailable() {
+    return Container(
+      color: AppTheme.surfaceLight,
+      alignment: Alignment.center,
+      child: Text(
+        'Map image unavailable',
+        style: TextStyle(color: AppTheme.textSecondary),
+      ),
+    );
   }
 }
 
@@ -533,6 +790,7 @@ class _MapOverlayPainter extends CustomPainter {
   final bool showGrid;
   final bool showDistanceLine;
   final double zoomLevel;
+  final String selectedMortar;
   final double calibrationOffsetX;
   final double calibrationOffsetY;
   final double calibrationScaleX;
@@ -544,6 +802,7 @@ class _MapOverlayPainter extends CustomPainter {
     required this.showGrid,
     required this.showDistanceLine,
     required this.zoomLevel,
+    required this.selectedMortar,
     required this.calibrationOffsetX,
     required this.calibrationOffsetY,
     required this.calibrationScaleX,
@@ -556,8 +815,12 @@ class _MapOverlayPainter extends CustomPainter {
       _drawGrid(canvas, size);
     }
 
+    final mortar = _findMarker(MarkerType.mortar);
+    if (mortar != null) {
+      _drawMaxRangeRadius(canvas, size, mortar);
+    }
+
     if (showDistanceLine) {
-      final mortar = _findMarker(MarkerType.mortar);
       final target = _findMarker(MarkerType.target);
       if (mortar != null && target != null) {
         _drawDistanceLine(canvas, size, mortar, target);
@@ -569,26 +832,76 @@ class _MapOverlayPainter extends CustomPainter {
     }
   }
 
+  void _drawMaxRangeRadius(Canvas canvas, Size size, MapMarker mortar) {
+    final tables = BallisticTables.getTables(selectedMortar);
+    if (tables.isEmpty) {
+      return;
+    }
+    final maxRange = tables.map((t) => t.maxRange).reduce(math.max);
+    if (maxRange <= 0) {
+      return;
+    }
+
+    final center = _worldToPixel(mortar.position, size);
+    final radiusX =
+        (maxRange / metadata.worldSize) * calibrationScaleX * size.width;
+    final radiusY =
+        (maxRange / metadata.worldSize) * calibrationScaleY * size.height;
+    if (radiusX <= 1 || radiusY <= 1) {
+      return;
+    }
+
+    final safeZoom = zoomLevel.clamp(0.25, 8.0);
+    final paint = Paint()
+      ..color = AppTheme.textSecondary.withOpacity(0.45)
+      ..strokeWidth = 1.2 / math.sqrt(safeZoom)
+      ..style = PaintingStyle.stroke;
+
+    final oval = Path()
+      ..addOval(
+        Rect.fromCenter(
+          center: center,
+          width: radiusX * 2,
+          height: radiusY * 2,
+        ),
+      );
+    for (final metric in oval.computeMetrics()) {
+      var distance = 0.0;
+      const dashLength = 9.0;
+      const gapLength = 7.0;
+      while (distance < metric.length) {
+        final next = math.min(distance + dashLength, metric.length);
+        canvas.drawPath(metric.extractPath(distance, next), paint);
+        distance += dashLength + gapLength;
+      }
+    }
+  }
+
   void _drawGrid(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = AppTheme.gridLine.withOpacity(0.35)
       ..strokeWidth = 0.6;
 
-    for (double worldX = 0; worldX <= metadata.worldSize; worldX += metadata.gridSize) {
-      final normalizedX =
-          calibrationOffsetX + calibrationScaleX * (worldX / metadata.worldSize);
+    for (double worldX = 0;
+        worldX <= metadata.worldSize;
+        worldX += metadata.gridSize) {
+      final normalizedX = calibrationOffsetX +
+          calibrationScaleX * (worldX / metadata.worldSize);
       final pixelX = normalizedX * size.width;
       canvas.drawLine(Offset(pixelX, 0), Offset(pixelX, size.height), paint);
     }
-    for (double worldY = 0; worldY <= metadata.worldSize; worldY += metadata.gridSize) {
-      final normalizedY =
-          calibrationOffsetY + calibrationScaleY * (1 - (worldY / metadata.worldSize));
+    for (double worldY = 0;
+        worldY <= metadata.worldSize;
+        worldY += metadata.gridSize) {
+      final normalizedY = calibrationOffsetY +
+          calibrationScaleY * (1 - (worldY / metadata.worldSize));
       final pixelY = normalizedY * size.height;
       canvas.drawLine(Offset(0, pixelY), Offset(size.width, pixelY), paint);
     }
   }
 
-  void _drawDistanceLine(Canvas canvas, Size size, MapMarker mortar, MapMarker target) {
+  void _drawDistanceLine(
+      Canvas canvas, Size size, MapMarker mortar, MapMarker target) {
     final mPos = _worldToPixel(mortar.position, size);
     final tPos = _worldToPixel(target.position, size);
     final safeZoom = zoomLevel.clamp(0.25, 5.0);
@@ -621,15 +934,17 @@ class _MapOverlayPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(mid.dx - textPainter.width / 2, mid.dy - 20));
+    textPainter.paint(
+        canvas, Offset(mid.dx - textPainter.width / 2, mid.dy - 20));
   }
 
   void _drawMarker(Canvas canvas, Size size, MapMarker marker) {
     final position = _worldToPixel(marker.position, size);
     final safeZoom = zoomLevel.clamp(0.25, 5.0);
-    final baseRadius = marker.type == MarkerType.mortar || marker.type == MarkerType.target
-        ? 6.0
-        : 4.5;
+    final baseRadius =
+        marker.type == MarkerType.mortar || marker.type == MarkerType.target
+            ? 6.0
+            : 4.5;
     // Painter is drawn inside scaled map transform, so we compensate by sqrt(zoom)
     // to keep markers readable and avoid oversized circles on higher zoom levels.
     final radius = baseRadius / math.sqrt(safeZoom);
@@ -667,8 +982,8 @@ class _MapOverlayPainter extends CustomPainter {
   }
 
   Offset _worldToPixel(Position position, Size size) {
-    final normalizedX =
-        calibrationOffsetX + calibrationScaleX * (position.x / metadata.worldSize);
+    final normalizedX = calibrationOffsetX +
+        calibrationScaleX * (position.x / metadata.worldSize);
     final normalizedY = calibrationOffsetY +
         calibrationScaleY * (1 - (position.y / metadata.worldSize));
 
@@ -693,6 +1008,7 @@ class _MapOverlayPainter extends CustomPainter {
         oldDelegate.showGrid != showGrid ||
         oldDelegate.showDistanceLine != showDistanceLine ||
         oldDelegate.zoomLevel != zoomLevel ||
+        oldDelegate.selectedMortar != selectedMortar ||
         oldDelegate.calibrationOffsetX != calibrationOffsetX ||
         oldDelegate.calibrationOffsetY != calibrationOffsetY ||
         oldDelegate.calibrationScaleX != calibrationScaleX ||
@@ -792,7 +1108,8 @@ class _BottomPanel extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceLight,
                       borderRadius: BorderRadius.circular(4),
@@ -801,8 +1118,10 @@ class _BottomPanel extends StatelessWidget {
                       child: DropdownButton<String>(
                         value: selectedMortar,
                         dropdownColor: AppTheme.surfaceLight,
-                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-                        icon: Icon(Icons.arrow_drop_down, color: AppTheme.accent),
+                        style: TextStyle(
+                            color: AppTheme.textPrimary, fontSize: 14),
+                        icon:
+                            Icon(Icons.arrow_drop_down, color: AppTheme.accent),
                         items: availableMortars.map((mortar) {
                           return DropdownMenuItem(
                             value: mortar,
@@ -839,7 +1158,8 @@ class _BottomPanel extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline, color: AppTheme.danger, size: 20),
+                      Icon(Icons.error_outline,
+                          color: AppTheme.danger, size: 20),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -859,7 +1179,8 @@ class _BottomPanel extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: AppTheme.textMuted, size: 20),
+                      Icon(Icons.info_outline,
+                          color: AppTheme.textMuted, size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
