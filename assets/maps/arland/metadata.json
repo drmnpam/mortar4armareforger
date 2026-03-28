@@ -1,0 +1,8 @@
+{
+  "name": "Arland",
+  "image": "map.png",
+  "worldSize": 6144,
+  "gridSize": 100,
+  "pixelsPerMeter": 0.5,
+  "description": "Arma Reforger Arland terrain - 6.144km x 6.144km"
+}

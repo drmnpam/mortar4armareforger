@@ -1,0 +1,74 @@
+{
+  "mortar": "M252",
+  "charges": [
+    {
+      "charge": 0,
+      "table": [
+        {"range": 100, "elevation": 1520, "tof": 11.5},
+        {"range": 200, "elevation": 1490, "tof": 12.8},
+        {"range": 300, "elevation": 1450, "tof": 14.2},
+        {"range": 400, "elevation": 1400, "tof": 15.8},
+        {"range": 500, "elevation": 1340, "tof": 17.6},
+        {"range": 600, "elevation": 1270, "tof": 19.7},
+        {"range": 700, "elevation": 1180, "tof": 22.2},
+        {"range": 800, "elevation": 1070, "tof": 25.4},
+        {"range": 900, "elevation": 920, "tof": 30.1},
+        {"range": 1000, "elevation": 700, "tof": 39.5}
+      ]
+    },
+    {
+      "charge": 1,
+      "table": [
+        {"range": 300, "elevation": 1520, "tof": 14.2},
+        {"range": 400, "elevation": 1490, "tof": 15.8},
+        {"range": 500, "elevation": 1460, "tof": 17.6},
+        {"range": 600, "elevation": 1420, "tof": 19.7},
+        {"range": 700, "elevation": 1380, "tof": 22.2},
+        {"range": 800, "elevation": 1340, "tof": 25.4},
+        {"range": 900, "elevation": 1290, "tof": 30.1},
+        {"range": 1000, "elevation": 1230, "tof": 32.5},
+        {"range": 1100, "elevation": 1160, "tof": 44.2},
+        {"range": 1200, "elevation": 1070, "tof": 48.5},
+        {"range": 1300, "elevation": 950, "tof": 52.8},
+        {"range": 1400, "elevation": 750, "tof": 57.1},
+        {"range": 1500, "elevation": 400, "tof": 61.5}
+      ]
+    },
+    {
+      "charge": 2,
+      "table": [
+        {"range": 600, "elevation": 1520, "tof": 19.7},
+        {"range": 700, "elevation": 1490, "tof": 22.2},
+        {"range": 800, "elevation": 1460, "tof": 25.4},
+        {"range": 900, "elevation": 1430, "tof": 30.1},
+        {"range": 1000, "elevation": 1400, "tof": 32.5},
+        {"range": 1200, "elevation": 1330, "tof": 38.5},
+        {"range": 1400, "elevation": 1250, "tof": 43.8},
+        {"range": 1600, "elevation": 1160, "tof": 49.2},
+        {"range": 1800, "elevation": 1050, "tof": 54.6},
+        {"range": 2000, "elevation": 900, "tof": 60.1},
+        {"range": 2200, "elevation": 680, "tof": 65.8},
+        {"range": 2400, "elevation": 280, "tof": 72.1}
+      ]
+    },
+    {
+      "charge": 3,
+      "table": [
+        {"range": 1100, "elevation": 1520, "tof": 44.2},
+        {"range": 1200, "elevation": 1490, "tof": 48.5},
+        {"range": 1400, "elevation": 1440, "tof": 52.8},
+        {"range": 1600, "elevation": 1390, "tof": 57.1},
+        {"range": 1800, "elevation": 1340, "tof": 61.5},
+        {"range": 2000, "elevation": 1280, "tof": 65.8},
+        {"range": 2200, "elevation": 1220, "tof": 70.2},
+        {"range": 2400, "elevation": 1160, "tof": 74.5},
+        {"range": 2600, "elevation": 1090, "tof": 78.9},
+        {"range": 2800, "elevation": 1010, "tof": 83.2},
+        {"range": 3000, "elevation": 920, "tof": 87.6},
+        {"range": 3200, "elevation": 800, "tof": 92.0},
+        {"range": 3400, "elevation": 620, "tof": 96.5},
+        {"range": 3600, "elevation": 280, "tof": 101.1}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Everon",
+  "description": "Arma Reforger Everon terrain - 10.24km x 10.24km island",
+  "image": "map.png",
+  "heightmap": "heightmap.png",
+  "worldSize": 10240,
+  "gridSize": 100,
+  "pixelsPerMeter": 0.5,
+  "minElevation": 0,
+  "maxElevation": 250,
+  "coordinateSystem": {
+    "type": "Arma_Reforger",
+    "originX": 0,
+    "originY": 0,
+    "gridReferenceDigits": 6
+  },
+  "terrain": {
+    "type": "island",
+    "waterLevel": 0,
+    "biome": "temperate"
+  },
+  "author": "Bohemia Interactive",
+  "version": "1.0",
+  "workshopId": null,
+  "sourceUrl": null,
+  "tags": ["official", "island", "temperate"],
+  "importedAt": "2024-01-01T00:00:00Z"
+}

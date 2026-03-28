@@ -1,0 +1,53 @@
+{
+  "format": "Heightmap_1.0",
+  "description": "Heightmap format for Mortar Calculator",
+  
+  "fileFormats": {
+    "png_grayscale": {
+      "description": "PNG grayscale image where pixel value = elevation",
+      "bitDepth": "8 or 16 bit",
+      "valueMapping": "0 = minElevation, 255/65535 = maxElevation"
+    },
+    "raw_float32": {
+      "description": "Raw binary float32 array",
+      "endian": "little",
+      "stride": 4
+    },
+    "json_array": {
+      "description": "JSON array of elevation values",
+      "encoding": "Base64 float32 array"
+    }
+  },
+  
+  "metadata": {
+    "name": "string - map name",
+    "width": "integer - pixels/samples in X",
+    "height": "integer - pixels/samples in Y",
+    "worldSize": "float - world size in meters",
+    "minElevation": "float - minimum elevation value",
+    "maxElevation": "float - maximum elevation value",
+    "source": "string - source of heightmap data"
+  },
+  
+  "example_png": {
+    "file": "heightmap.png",
+    "width": 1024,
+    "height": 1024,
+    "worldSize": 10240,
+    "minElevation": 0,
+    "maxElevation": 250,
+    "resolution": "10m per pixel"
+  },
+  
+  "sampleData": {
+    "header": {
+      "name": "Everon",
+      "width": 1024,
+      "height": 1024,
+      "worldSize": 10240,
+      "minElevation": 0,
+      "maxElevation": 250
+    },
+    "data": "<base64_encoded_or_file_reference>"
+  }
+}

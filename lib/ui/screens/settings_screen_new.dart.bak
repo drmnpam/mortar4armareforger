@@ -1,0 +1,389 @@
+import 'package:flutter/material.dart';
+import '../../app/theme/app_theme.dart';
+import '../../storage/storage.dart';
+import '../../models/models.dart';
+
+/// Enhanced settings screen with all configuration options
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late StorageService _storage;
+  bool _isLoading = true;
+
+  // Settings values
+  String _mortarType = 'M252';
+  bool _autoCharge = true;
+  bool _useMetric = true;
+  bool _useNatoMils = true;
+  String _themeMode = 'dark';
+  bool _showGrid = true;
+  bool _showImpactZones = true;
+  bool _autoAltitude = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _storage = StorageService();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    await _storage.initialize();
+    setState(() {
+      _mortarType = _storage.getPreferredMortar();
+      _autoCharge = _storage.getAutoCharge();
+      _themeMode = _storage.getSetting<String>('theme_mode') ?? 'dark';
+      _showGrid = _storage.getSetting<bool>('show_grid') ?? true;
+      _autoAltitude = _storage.getSetting<bool>('auto_altitude') ?? true;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _saveSetting(String key, dynamic value) async {
+    await _storage.saveSetting(key, value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text('SETTINGS'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Mortar Configuration
+          _SectionHeader('MORTAR CONFIGURATION'),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.explore),
+                  title: const Text('Mortar Type'),
+                  subtitle: Text(_mortarType),
+                  trailing: DropdownButton<String>(
+                    value: _mortarType,
+                    items: ['M252', '2B14', 'M224'].map((type) {
+                      return DropdownMenuItem(
+                        value: type,
+                        child: Text(type),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _mortarType = value);
+                        _storage.setPreferredMortar(value);
+                      }
+                    },
+                  ),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.bolt),
+                  title: const Text('Auto Charge Selection'),
+                  subtitle: const Text('Automatically select optimal charge'),
+                  value: _autoCharge,
+                  onChanged: (value) {
+                    setState(() => _autoCharge = value);
+                    _storage.setAutoCharge(value);
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Display Settings
+          _SectionHeader('DISPLAY'),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.palette),
+                  title: const Text('Theme'),
+                  trailing: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'dark',
+                        label: Text('Dark'),
+                        icon: Icon(Icons.dark_mode),
+                      ),
+                      ButtonSegment(
+                        value: 'red',
+                        label: Text('Night'),
+                        icon: Icon(Icons.nights_stay),
+                      ),
+                    ],
+                    selected: {_themeMode},
+                    onSelectionChanged: (set) {
+                      setState(() => _themeMode = set.first);
+                      _saveSetting('theme_mode', set.first);
+                    },
+                  ),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.grid_on),
+                  title: const Text('Show Grid Overlay'),
+                  value: _showGrid,
+                  onChanged: (value) {
+                    setState(() => _showGrid = value);
+                    _saveSetting('show_grid', value);
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.blur_circular),
+                  title: const Text('Show Impact Zones'),
+                  subtitle: const Text('Kill/casualty radius circles'),
+                  value: _showImpactZones,
+                  onChanged: (value) {
+                    setState(() => _showImpactZones = value);
+                    _saveSetting('show_impact_zones', value);
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Map Settings
+          _SectionHeader('MAP'),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.terrain),
+                  title: const Text('Auto Altitude'),
+                  subtitle: const Text('Use heightmap for automatic elevation'),
+                  value: _autoAltitude,
+                  onChanged: (value) {
+                    setState(() => _autoAltitude = value);
+                    _saveSetting('auto_altitude', value);
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.map),
+                  title: const Text('Installed Maps'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    // Navigate to map management
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.download),
+                  title: const Text('Import Workshop Map'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    // Show import dialog
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Data Management
+          _SectionHeader('DATA MANAGEMENT'),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.save, color: AppTheme.accent),
+                  title: const Text('Export All Data'),
+                  subtitle: const Text('Save settings, targets, and history'),
+                  onTap: _exportData,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(Icons.restore, color: AppTheme.accent),
+                  title: const Text('Import Data'),
+                  subtitle: const Text('Restore from backup file'),
+                  onTap: _importData,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(Icons.delete_forever, color: AppTheme.danger),
+                  title: Text('Clear All Data', style: TextStyle(color: AppTheme.danger)),
+                  subtitle: const Text('Permanently delete everything'),
+                  onTap: _confirmClearData,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // About
+          _SectionHeader('ABOUT'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.explore, color: AppTheme.accent, size: 40),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mortar Calculator',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          Text(
+                            'Version 1.0.0 (Beta)',
+                            style: TextStyle(color: AppTheme.textMuted),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'A ballistic calculator for Arma Reforger. '
+                    'Designed for offline use in the field.',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          // Show tutorial
+                        },
+                        child: const Text('VIEW TUTORIAL'),
+                      ),
+                      const SizedBox(width: 16),
+                      TextButton(
+                        onPressed: () {
+                          // Open feedback
+                        },
+                        child: const Text('SEND FEEDBACK'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  void _exportData() async {
+    final data = await _storage.exportData();
+    // Copy to clipboard or share
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Data copied to clipboard')),
+      );
+    }
+  }
+
+  void _importData() {
+    // Show import dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import Data'),
+        content: const TextField(
+          maxLines: 5,
+          decoration: InputDecoration(
+            hintText: 'Paste exported data here...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Process import
+              Navigator.pop(context);
+            },
+            child: const Text('IMPORT'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearData() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear All Data?'),
+        content: const Text(
+          'This will permanently delete all saved targets, settings, '
+          'and calculation history. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await _storage.clearAll();
+              if (mounted) {
+                Navigator.pop(context);
+                _loadSettings();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('All data cleared')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('CLEAR'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.accent,
+          letterSpacing: 1.5,
+        ),
+      ),
+    );
+  }
+}

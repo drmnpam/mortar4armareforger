@@ -1,0 +1,8 @@
+﻿{
+    "pixelsPerMeter":  0.625,
+    "name":  "Kolguyev",
+    "worldSize":  12800,
+    "description":  "Arma Reforger Kolguyev terrain - 12.8km x 12.8km",
+    "gridSize":  100,
+    "image":  "map.png"
+}

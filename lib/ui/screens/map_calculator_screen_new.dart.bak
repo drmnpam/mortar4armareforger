@@ -1,0 +1,577 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../app/theme/app_theme.dart';
+import '../../ballistics/fire_mission.dart';
+import '../../models/models.dart';
+import '../widgets/firing_solution_panel.dart';
+import '../widgets/impact_overlay.dart';
+
+/// Main calculator screen with full-screen map
+class MapCalculatorScreen extends StatefulWidget {
+  const MapCalculatorScreen({super.key});
+
+  @override
+  State<MapCalculatorScreen> createState() => _MapCalculatorScreenState();
+}
+
+class _MapCalculatorScreenState extends State<MapCalculatorScreen> {
+  Position? _mortarPosition;
+  Position? _targetPosition;
+  FiringSolution? _solution;
+  FireMission? _activeMission;
+  bool _showGrid = true;
+  bool _showImpact = true;
+  double _zoom = 1.0;
+  Offset _pan = Offset.zero;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: Stack(
+        children: [
+          // Full screen map
+          _buildMapCanvas(),
+          
+          // Top controls
+          _buildTopControls(),
+          
+          // Side quick actions
+          _buildQuickActions(),
+          
+          // Bottom firing solution panel
+          if (_solution != null)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: FiringSolutionPanel(
+                solution: _solution!,
+                onCopy: _copySolution,
+                onSave: _saveTarget,
+                onFire: _fire,
+              ),
+            ),
+          
+          // Impact overlay
+          if (_targetPosition != null && _solution != null && _showImpact)
+            _buildImpactOverlay(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapCanvas() {
+    return GestureDetector(
+      onPanUpdate: (details) {
+        setState(() {
+          _pan += details.delta;
+        });
+      },
+      onTapUp: (details) {
+        _handleMapTap(details.localPosition);
+      },
+      child: Container(
+        color: AppTheme.surface,
+        child: CustomPaint(
+          painter: _MapPainter(
+            showGrid: _showGrid,
+            zoom: _zoom,
+            pan: _pan,
+            mortarPosition: _mortarPosition,
+            targetPosition: _targetPosition,
+          ),
+          size: Size.infinite,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopControls() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 16,
+      right: 16,
+      child: Row(
+        children: [
+          // Back button
+          CircleAvatar(
+            backgroundColor: AppTheme.surface.withOpacity(0.9),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          // Map selector
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.surface.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.map, size: 18, color: AppTheme.accent),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Everon',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.arrow_drop_down, color: AppTheme.textMuted),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          // Settings
+          CircleAvatar(
+            backgroundColor: AppTheme.surface.withOpacity(0.9),
+            child: IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: _showSettings,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Positioned(
+      right: 16,
+      top: MediaQuery.of(context).padding.top + 80,
+      child: Column(
+        children: [
+          // Set Mortar
+          _QuickActionButton(
+            icon: Icons.my_location,
+            label: 'MORTAR',
+            color: AppTheme.primary,
+            onTap: _setMortar,
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Add Target
+          _QuickActionButton(
+            icon: Icons.location_on,
+            label: 'TARGET',
+            color: AppTheme.danger,
+            onTap: _addTarget,
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Fire Mission
+          _QuickActionButton(
+            icon: Icons.campaign,
+            label: 'MISSION',
+            color: AppTheme.warning,
+            onTap: _startFireMission,
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Correction
+          _QuickActionButton(
+            icon: Icons.trending_up,
+            label: 'CORRECT',
+            color: AppTheme.accent,
+            onTap: _applyCorrection,
+            disabled: _solution == null,
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Save
+          _QuickActionButton(
+            icon: Icons.save,
+            label: 'SAVE',
+            color: AppTheme.textSecondary,
+            onTap: _saveTarget,
+            disabled: _targetPosition == null,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Zoom controls
+          _QuickActionButton(
+            icon: Icons.add,
+            label: '',
+            color: AppTheme.surfaceLight,
+            onTap: () => setState(() => _zoom *= 1.2),
+          ),
+          
+          const SizedBox(height: 4),
+          
+          _QuickActionButton(
+            icon: Icons.remove,
+            label: '',
+            color: AppTheme.surfaceLight,
+            onTap: () => setState(() => _zoom /= 1.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImpactOverlay() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return ImpactOverlay(
+          impactPosition: _targetPosition!,
+          solution: _solution,
+          mapSize: Size(constraints.maxWidth, constraints.maxHeight),
+          worldSize: 10240,
+          zoom: _zoom,
+          pan: _pan,
+          showCircles: _showImpact,
+          showEllipse: _showImpact,
+        );
+      },
+    );
+  }
+
+  void _handleMapTap(Offset position) {
+    // Convert tap to world coordinates and set position
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('SET POSITION'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.my_location, color: AppTheme.primary),
+              title: const Text('Set as Mortar'),
+              onTap: () {
+                Navigator.pop(context);
+                _setMortar();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.location_on, color: AppTheme.danger),
+              title: const Text('Set as Target'),
+              onTap: () {
+                Navigator.pop(context);
+                _addTarget();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _setMortar() {
+    // Show grid input dialog
+    showDialog(
+      context: context,
+      builder: (context) => _PositionInputDialog(
+        title: 'SET MORTAR POSITION',
+        onConfirm: (x, y) {
+          setState(() {
+            _mortarPosition = Position(x: x, y: y);
+          });
+          _calculateIfReady();
+        },
+      ),
+    );
+  }
+
+  void _addTarget() {
+    showDialog(
+      context: context,
+      builder: (context) => _PositionInputDialog(
+        title: 'SET TARGET POSITION',
+        onConfirm: (x, y) {
+          setState(() {
+            _targetPosition = Position(x: x, y: y);
+          });
+          _calculateIfReady();
+        },
+      ),
+    );
+  }
+
+  void _calculateIfReady() {
+    if (_mortarPosition != null && _targetPosition != null) {
+      // Calculate solution
+      // This would call the ballistic calculator
+      setState(() {
+        _solution = FiringSolution(
+          distance: 850,
+          azimuth: 3240,
+          elevation: 1422,
+          charge: 2,
+          timeOfFlight: 27.0,
+          heightDifference: 0,
+          mortarType: 'M252',
+        );
+      });
+    }
+  }
+
+  void _copySolution() {
+    // Copy to clipboard
+  }
+
+  void _saveTarget() {
+    // Save target to storage
+  }
+
+  void _fire() {
+    // Fire action
+  }
+
+  void _startFireMission() {
+    // Start fire mission
+  }
+
+  void _applyCorrection() {
+    // Apply shot correction
+  }
+
+  void _showSettings() {
+    // Show map settings
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final bool disabled;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.disabled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: disabled ? null : onTap,
+      child: Container(
+        width: 56,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: disabled ? AppTheme.surfaceLight.withOpacity(0.5) : AppTheme.surface.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: disabled ? AppTheme.gridLine : color,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: disabled ? AppTheme.textMuted : color,
+              size: 24,
+            ),
+            if (label.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  color: disabled ? AppTheme.textMuted : AppTheme.textPrimary,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapPainter extends CustomPainter {
+  final bool showGrid;
+  final double zoom;
+  final Offset pan;
+  final Position? mortarPosition;
+  final Position? targetPosition;
+
+  _MapPainter({
+    required this.showGrid,
+    required this.zoom,
+    required this.pan,
+    this.mortarPosition,
+    this.targetPosition,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw grid if enabled
+    if (showGrid) {
+      _drawGrid(canvas, size);
+    }
+
+    // Draw mortar marker
+    if (mortarPosition != null) {
+      _drawMarker(canvas, size, mortarPosition!, AppTheme.primary);
+    }
+
+    // Draw target marker
+    if (targetPosition != null) {
+      _drawMarker(canvas, size, targetPosition!, AppTheme.danger);
+    }
+
+    // Draw distance line if both positions exist
+    if (mortarPosition != null && targetPosition != null) {
+      _drawDistanceLine(canvas, size);
+    }
+  }
+
+  void _drawGrid(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppTheme.gridLine.withOpacity(0.3)
+      ..strokeWidth = 0.5;
+
+    const gridSize = 100.0; // meters
+    final pixelSize = gridSize * zoom;
+
+    double x = pan.dx % pixelSize;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+      x += pixelSize;
+    }
+
+    double y = pan.dy % pixelSize;
+    while (y < size.height) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      y += pixelSize;
+    }
+  }
+
+  void _drawMarker(Canvas canvas, Size size, Position pos, Color color) {
+    const worldSize = 10240.0;
+    final pixelX = (pos.x / worldSize) * size.width * zoom + pan.dx;
+    final pixelY = (1 - pos.y / worldSize) * size.height * zoom + pan.dy;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(Offset(pixelX, pixelY), 12, paint);
+
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawCircle(Offset(pixelX, pixelY), 12, borderPaint);
+  }
+
+  void _drawDistanceLine(Canvas canvas, Size size) {
+    const worldSize = 10240.0;
+    final startX = (mortarPosition!.x / worldSize) * size.width * zoom + pan.dx;
+    final startY = (1 - mortarPosition!.y / worldSize) * size.height * zoom + pan.dy;
+    final endX = (targetPosition!.x / worldSize) * size.width * zoom + pan.dx;
+    final endY = (1 - targetPosition!.y / worldSize) * size.height * zoom + pan.dy;
+
+    final paint = Paint()
+      ..color = AppTheme.accent.withOpacity(0.6)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(
+      Offset(startX, startY),
+      Offset(endX, endY),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _PositionInputDialog extends StatelessWidget {
+  final String title;
+  final Function(double x, double y) onConfirm;
+
+  const _PositionInputDialog({
+    required this.title,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final xController = TextEditingController();
+    final yController = TextEditingController();
+
+    return AlertDialog(
+      backgroundColor: AppTheme.surface,
+      title: Text(title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: xController,
+                  decoration: const InputDecoration(
+                    labelText: 'X COORD',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: yController,
+                  decoration: const InputDecoration(
+                    labelText: 'Y COORD',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Or use 6-digit grid: XXX YYY',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.textMuted,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CANCEL'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final x = double.tryParse(xController.text) ?? 0;
+            final y = double.tryParse(yController.text) ?? 0;
+            onConfirm(x, y);
+            Navigator.pop(context);
+          },
+          child: const Text('CONFIRM'),
+        ),
+      ],
+    );
+  }
+}

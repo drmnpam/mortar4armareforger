@@ -1,0 +1,102 @@
+{
+  "format": "BallisticTable_v1.0",
+  "mortar": "M224",
+  "description": "60mm Lightweight Company Mortar - US",
+  "caliber_mm": 60,
+  "origin": "United States",
+  "firing_mode": "high_angle",
+  "charges": [
+    {
+      "charge": 0,
+      "description": "Charge 0 - Min",
+      "propellant": "M720",
+      "increments": 0,
+      "min_range_m": 70,
+      "max_range_m": 800,
+      "table": [
+        {"range_m": 100, "elevation_mil": 1480, "tof_s": 9.5, "drift_mil": 0.4},
+        {"range_m": 200, "elevation_mil": 1450, "tof_s": 10.5, "drift_mil": 0.6},
+        {"range_m": 300, "elevation_mil": 1410, "tof_s": 11.6, "drift_mil": 0.9},
+        {"range_m": 400, "elevation_mil": 1360, "tof_s": 12.8, "drift_mil": 1.2},
+        {"range_m": 500, "elevation_mil": 1300, "tof_s": 14.2, "drift_mil": 1.5},
+        {"range_m": 600, "elevation_mil": 1230, "tof_s": 15.8, "drift_mil": 1.9},
+        {"range_m": 700, "elevation_mil": 1140, "tof_s": 17.7, "drift_mil": 2.3},
+        {"range_m": 800, "elevation_mil": 1020, "tof_s": 20.1, "drift_mil": 2.8}
+      ]
+    },
+    {
+      "charge": 1,
+      "description": "Charge 1 - Low",
+      "propellant": "M720",
+      "increments": 1,
+      "min_range_m": 200,
+      "max_range_m": 1300,
+      "table": [
+        {"range_m": 300, "elevation_mil": 1480, "tof_s": 11.6, "drift_mil": 0.8},
+        {"range_m": 400, "elevation_mil": 1450, "tof_s": 12.8, "drift_mil": 1.1},
+        {"range_m": 500, "elevation_mil": 1420, "tof_s": 14.2, "drift_mil": 1.4},
+        {"range_m": 600, "elevation_mil": 1380, "tof_s": 15.8, "drift_mil": 1.8},
+        {"range_m": 700, "elevation_mil": 1340, "tof_s": 17.7, "drift_mil": 2.2},
+        {"range_m": 800, "elevation_mil": 1300, "tof_s": 20.1, "drift_mil": 2.7},
+        {"range_m": 900, "elevation_mil": 1250, "tof_s": 23.2, "drift_mil": 3.3},
+        {"range_m": 1000, "elevation_mil": 1190, "tof_s": 26.5, "drift_mil": 4.0},
+        {"range_m": 1100, "elevation_mil": 1120, "tof_s": 30.2, "drift_mil": 4.8},
+        {"range_m": 1200, "elevation_mil": 1030, "tof_s": 34.5, "drift_mil": 5.7},
+        {"range_m": 1300, "elevation_mil": 910, "tof_s": 39.5, "drift_mil": 6.8}
+      ]
+    },
+    {
+      "charge": 2,
+      "description": "Charge 2 - Med",
+      "propellant": "M720",
+      "increments": 2,
+      "min_range_m": 500,
+      "max_range_m": 2100,
+      "table": [
+        {"range_m": 500, "elevation_mil": 1480, "tof_s": 14.2, "drift_mil": 1.2},
+        {"range_m": 600, "elevation_mil": 1450, "tof_s": 15.8, "drift_mil": 1.5},
+        {"range_m": 700, "elevation_mil": 1420, "tof_s": 17.7, "drift_mil": 1.9},
+        {"range_m": 800, "elevation_mil": 1390, "tof_s": 20.1, "drift_mil": 2.3},
+        {"range_m": 900, "elevation_mil": 1360, "tof_s": 23.0, "drift_mil": 2.8},
+        {"range_m": 1000, "elevation_mil": 1320, "tof_s": 26.5, "drift_mil": 3.4},
+        {"range_m": 1200, "elevation_mil": 1230, "tof_s": 35.0, "drift_mil": 5.0},
+        {"range_m": 1400, "elevation_mil": 1120, "tof_s": 45.2, "drift_mil": 7.2},
+        {"range_m": 1600, "elevation_mil": 990, "tof_s": 57.0, "drift_mil": 10.0},
+        {"range_m": 1800, "elevation_mil": 820, "tof_s": 70.5, "drift_mil": 13.5},
+        {"range_m": 2100, "elevation_mil": 420, "tof_s": 88.0, "drift_mil": 18.0}
+      ]
+    },
+    {
+      "charge": 3,
+      "description": "Charge 3 - Max",
+      "propellant": "M720",
+      "increments": 3,
+      "min_range_m": 900,
+      "max_range_m": 3200,
+      "table": [
+        {"range_m": 900, "elevation_mil": 1480, "tof_s": 23.2, "drift_mil": 1.8},
+        {"range_m": 1000, "elevation_mil": 1450, "tof_s": 26.5, "drift_mil": 2.2},
+        {"range_m": 1200, "elevation_mil": 1400, "tof_s": 35.0, "drift_mil": 3.2},
+        {"range_m": 1400, "elevation_mil": 1340, "tof_s": 45.2, "drift_mil": 4.5},
+        {"range_m": 1600, "elevation_mil": 1280, "tof_s": 56.5, "drift_mil": 6.2},
+        {"range_m": 1800, "elevation_mil": 1210, "tof_s": 69.2, "drift_mil": 8.3},
+        {"range_m": 2000, "elevation_mil": 1140, "tof_s": 83.5, "drift_mil": 10.8},
+        {"range_m": 2200, "elevation_mil": 1060, "tof_s": 99.5, "drift_mil": 13.8},
+        {"range_m": 2400, "elevation_mil": 970, "tof_s": 117.2, "drift_mil": 17.3},
+        {"range_m": 2600, "elevation_mil": 860, "tof_s": 136.8, "drift_mil": 21.5},
+        {"range_m": 2800, "elevation_mil": 720, "tof_s": 158.2, "drift_mil": 26.4},
+        {"range_m": 3000, "elevation_mil": 520, "tof_s": 182.0, "drift_mil": 32.0},
+        {"range_m": 3200, "elevation_mil": 180, "tof_s": 208.5, "drift_mil": 38.5}
+      ]
+    }
+  ],
+  "specifications": {
+    "weight_kg": 21.1,
+    "barrel_length_mm": 650,
+    "rate_of_fire_rpm": "8-25",
+    "effective_radius_m": 25,
+    "kill_radius_m": 18,
+    "max_range_m": 3200,
+    "min_range_m": 70
+  }
+}
