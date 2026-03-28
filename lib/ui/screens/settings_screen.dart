@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../app/theme/app_theme.dart';
 import '../../app/theme/theme_cubit.dart';
 import '../../ballistics/ballistics.dart';
@@ -27,8 +32,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _loadSettings() async {
     await _storage.initialize();
+    BallisticTables.initialize();
+    final customTables = await CustomBallisticTablesStorage.loadAll();
+    BallisticTables.importCustomTables(customTables);
+    final mortars = BallisticTables.availableMortars;
+    final preferred = _storage.getPreferredMortar();
+    final selected = mortars.contains(preferred)
+        ? preferred
+        : (mortars.firstOrNull ?? 'M252');
+    if (!mounted) return;
     setState(() {
-      _preferredMortar = _storage.getPreferredMortar();
+      _preferredMortar = selected;
     });
   }
 
@@ -87,6 +101,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     leading: Icon(Icons.bolt, color: AppTheme.accent),
                     title: const Text('Charge Selection'),
                     subtitle: const Text('Always AUTO'),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Icon(Icons.table_chart, color: AppTheme.accent),
+                    title: const Text('Add Custom Table'),
+                    subtitle: const Text('Ballistic tables import/export JSON'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _showBallisticTablesDialog,
                   ),
                 ],
               ),
@@ -365,6 +387,257 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _showBallisticTablesDialog() async {
+    String? selectedMortar = BallisticTables.customMortars.firstOrNull;
+    String? localError;
+    bool busy = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> importFromFile() async {
+              try {
+                setSheetState(() {
+                  busy = true;
+                  localError = null;
+                });
+                final result = await FilePicker.platform.pickFiles(
+                  type: FileType.custom,
+                  allowedExtensions: const ['json'],
+                );
+                final path = result?.files.single.path;
+                if (path == null || path.isEmpty) {
+                  setSheetState(() => busy = false);
+                  return;
+                }
+
+                final raw = await File(path).readAsString();
+                final payloads = BallisticTables.parseImportPayload(raw);
+                BallisticTables.importCustomTables(payloads);
+                await CustomBallisticTablesStorage.saveAll(
+                  BallisticTables.exportCustomTables(),
+                );
+
+                if (!mounted) return;
+                setState(() {
+                  if (!BallisticTables.availableMortars
+                      .contains(_preferredMortar)) {
+                    _preferredMortar =
+                        BallisticTables.availableMortars.firstOrNull ?? 'M252';
+                  }
+                });
+                setSheetState(() {
+                  selectedMortar ??= BallisticTables.customMortars.firstOrNull;
+                  busy = false;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Custom ballistic table imported')),
+                );
+              } catch (e) {
+                setSheetState(() {
+                  localError = 'Import failed: $e';
+                  busy = false;
+                });
+              }
+            }
+
+            Future<void> exportAllCustomTables() async {
+              try {
+                setSheetState(() {
+                  busy = true;
+                  localError = null;
+                });
+                final payload =
+                    BallisticTables.exportCustomTablesJson(pretty: true);
+                final file = await CustomBallisticTablesStorage.exportToFile(
+                  fileNamePrefix: 'custom_ballistic_tables',
+                  jsonPayload: payload,
+                );
+                await Share.shareXFiles(
+                  [XFile(file.path)],
+                  text: 'Custom ballistic tables export',
+                );
+                setSheetState(() => busy = false);
+              } catch (e) {
+                setSheetState(() {
+                  localError = 'Export failed: $e';
+                  busy = false;
+                });
+              }
+            }
+
+            Future<void> exportSelectedMortar() async {
+              try {
+                if (selectedMortar == null) {
+                  setSheetState(() => localError = 'No custom mortar selected');
+                  return;
+                }
+                setSheetState(() {
+                  busy = true;
+                  localError = null;
+                });
+                final payload =
+                    BallisticTables.exportMortarAsJson(selectedMortar!);
+                final file = await CustomBallisticTablesStorage.exportToFile(
+                  fileNamePrefix: selectedMortar!,
+                  jsonPayload:
+                      const JsonEncoder.withIndent('  ').convert(payload),
+                );
+                await Share.shareXFiles(
+                  [XFile(file.path)],
+                  text: 'Ballistic table: $selectedMortar',
+                );
+                setSheetState(() => busy = false);
+              } catch (e) {
+                setSheetState(() {
+                  localError = 'Export failed: $e';
+                  busy = false;
+                });
+              }
+            }
+
+            final customMortars = BallisticTables.customMortars;
+            final allMortars = BallisticTables.availableMortars;
+            if (selectedMortar != null &&
+                !customMortars.contains(selectedMortar)) {
+              selectedMortar = customMortars.firstOrNull;
+            }
+
+            return SafeArea(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  margin: const EdgeInsets.all(12),
+                  constraints: BoxConstraints(
+                    maxWidth: 760,
+                    maxHeight: MediaQuery.of(context).size.height * 0.70,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface.withOpacity(0.96),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppTheme.gridLine),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'BALLISTIC TABLES',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => Navigator.pop(sheetContext),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'Import and export custom mortar tables as JSON files.',
+                          style: TextStyle(color: AppTheme.textSecondary),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: busy ? null : importFromFile,
+                                icon: const Icon(Icons.file_open),
+                                label: const Text('IMPORT JSON'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: busy ? null : exportAllCustomTables,
+                                icon: const Icon(Icons.ios_share),
+                                label: const Text('EXPORT ALL CUSTOM'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        if (customMortars.isNotEmpty) ...[
+                          DropdownButtonFormField<String>(
+                            value: selectedMortar,
+                            decoration: const InputDecoration(
+                              labelText: 'Export custom mortar',
+                            ),
+                            items: customMortars
+                                .map(
+                                  (mortar) => DropdownMenuItem(
+                                    value: mortar,
+                                    child: Text(mortar),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: busy
+                                ? null
+                                : (value) {
+                                    setSheetState(() => selectedMortar = value);
+                                  },
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: busy ? null : exportSelectedMortar,
+                                  icon: const Icon(Icons.upload_file),
+                                  label: const Text('EXPORT SELECTED'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Text(
+                          'Available mortars (${allMortars.length}): ${allMortars.join(", ")}',
+                          style: TextStyle(color: AppTheme.textSecondary),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          customMortars.isEmpty
+                              ? 'Custom mortars: none'
+                              : 'Custom mortars (${customMortars.length}): ${customMortars.join(", ")}',
+                          style: TextStyle(color: AppTheme.textSecondary),
+                        ),
+                        if (localError != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            localError!,
+                            style: TextStyle(color: AppTheme.danger),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 }
 

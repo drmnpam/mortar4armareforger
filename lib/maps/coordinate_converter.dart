@@ -52,9 +52,10 @@ class CoordinateConverter {
     double pixelX,
     double pixelY,
     MapMetadata metadata,
+    double imageWidth,
     double imageHeight,
   ) {
-    return metadata.pixelToWorld(pixelX, pixelY, imageHeight);
+    return metadata.pixelToWorld(pixelX, pixelY, imageWidth, imageHeight);
   }
   
   /// Calculate grid cell coordinates from world position

@@ -1,24 +1,26 @@
+import 'dart:convert';
+
 import '../models/models.dart';
-import 'formulas.dart';
 
 /// Ballistic table loader and manager
 class BallisticTables {
   static final Map<String, List<BallisticTable>> _tables = {};
+  static final Set<String> _customMortars = {};
   static bool _initialized = false;
 
   /// Initialize with default tables
   static void initialize() {
     if (_initialized) return;
-    
+
     // Load M252 tables
     _tables['M252'] = _loadM252Tables();
-    
+
     // Load 2B14 Podnos tables (Russian 82mm)
     _tables['2B14'] = _load2B14Tables();
-    
+
     // Load M224 tables (60mm)
     _tables['M224'] = _loadM224Tables();
-    
+
     _initialized = true;
   }
 
@@ -39,21 +41,23 @@ class BallisticTables {
   }
 
   /// Get all available mortar types
-  static List<String> get availableMortars => 
-    _tables.keys.toList()..sort();
+  static List<String> get availableMortars => _tables.keys.toList()..sort();
+
+  /// Get imported custom mortar types.
+  static List<String> get customMortars => _customMortars.toList()..sort();
 
   /// Select best charge for given distance
   /// Returns the charge with lowest elevation (flattest trajectory)
   static int selectCharge(String mortarType, double distance) {
     final tables = getTables(mortarType);
-    
+
     // Find lowest charge that can reach this distance
     for (int i = 0; i < tables.length; i++) {
       if (distance <= tables[i].maxRange * 1.05) {
         return tables[i].charge;
       }
     }
-    
+
     // If beyond max range, use highest charge
     return tables.isNotEmpty ? tables.last.charge : 0;
   }
@@ -67,8 +71,8 @@ class BallisticTables {
   }) {
     final table = getTable(mortarType, charge);
     if (table == null) return false;
-    return distance >= table.minRange - tolerance && 
-           distance <= table.maxRange + tolerance;
+    return distance >= table.minRange - tolerance &&
+        distance <= table.maxRange + tolerance;
   }
 
   // Default tables for M252 81mm mortar
@@ -320,14 +324,181 @@ class BallisticTables {
     ];
   }
 
-  /// Load tables from JSON
-  static void loadFromJson(String mortarType, List<Map<String, dynamic>> json) {
-    _tables[mortarType] = json.map((e) => BallisticTable.fromJson(e)).toList();
+  /// Load raw table rows for a mortar.
+  static void loadFromJson(
+    String mortarType,
+    List<Map<String, dynamic>> json, {
+    bool markCustom = false,
+  }) {
+    if (!_initialized) initialize();
+    _tables[mortarType] = json
+        .map((e) => BallisticTable.fromJson(e))
+        .toList(growable: false)
+      ..sort((a, b) => a.charge.compareTo(b.charge));
+    if (markCustom) {
+      _customMortars.add(mortarType);
+    }
+  }
+
+  /// Parse one or many custom table JSON objects.
+  static List<Map<String, dynamic>> parseImportPayload(String rawJson) {
+    final decoded = jsonDecode(rawJson);
+    if (decoded is List) {
+      return decoded
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList(growable: false);
+    }
+    if (decoded is Map<String, dynamic>) {
+      final mortars = decoded['mortars'];
+      if (mortars is List) {
+        return mortars
+            .whereType<Map>()
+            .map((entry) => Map<String, dynamic>.from(entry))
+            .toList(growable: false);
+      }
+      return [Map<String, dynamic>.from(decoded)];
+    }
+    throw const FormatException('Unsupported JSON payload');
+  }
+
+  /// Import custom tables from payloads.
+  static void importCustomTables(List<Map<String, dynamic>> payloads) {
+    if (!_initialized) initialize();
+    for (final payload in payloads) {
+      importCustomTable(payload);
+    }
+  }
+
+  /// Import one custom table.
+  static void importCustomTable(Map<String, dynamic> payload) {
+    if (!_initialized) initialize();
+    final mortarName =
+        (payload['mortar'] ?? payload['name'])?.toString().trim();
+    if (mortarName == null || mortarName.isEmpty) {
+      throw const FormatException('Custom table must include mortar name');
+    }
+
+    final rawCharges = payload['charges'];
+    if (rawCharges is! List || rawCharges.isEmpty) {
+      throw const FormatException('Custom table must include charges');
+    }
+
+    final builtTables = <BallisticTable>[];
+    for (final chargeEntry in rawCharges) {
+      if (chargeEntry is! Map) {
+        throw const FormatException('Charge entry must be an object');
+      }
+      final chargeData = Map<String, dynamic>.from(chargeEntry);
+      final charge = _toInt(chargeData['charge']);
+      if (charge == null) {
+        throw const FormatException('Charge must be a number');
+      }
+      final rawRows = chargeData['table'] ?? chargeData['rows'];
+      if (rawRows is! List || rawRows.isEmpty) {
+        throw const FormatException('Charge must include table rows');
+      }
+
+      final rows = <BallisticRow>[];
+      for (final rowEntry in rawRows) {
+        if (rowEntry is! Map) {
+          throw const FormatException('Table row must be an object');
+        }
+        final row = Map<String, dynamic>.from(rowEntry);
+        final range = _toDouble(row['range'] ?? row['range_m']);
+        final elevation = _toDouble(row['elevation'] ?? row['elevation_mil']);
+        final tof =
+            _toDouble(row['timeOfFlight'] ?? row['tof'] ?? row['tof_s']);
+        if (range == null || elevation == null || tof == null) {
+          throw const FormatException(
+              'Each row requires range, elevation, timeOfFlight');
+        }
+        rows.add(
+          BallisticRow(
+            range: range,
+            elevation: elevation,
+            timeOfFlight: tof,
+          ),
+        );
+      }
+
+      rows.sort((a, b) => a.range.compareTo(b.range));
+      builtTables.add(
+        BallisticTable(
+          mortar: mortarName,
+          charge: charge,
+          table: rows,
+        ),
+      );
+    }
+
+    builtTables.sort((a, b) => a.charge.compareTo(b.charge));
+    _tables[mortarName] = builtTables;
+    _customMortars.add(mortarName);
+  }
+
+  /// Export one mortar table in custom JSON format.
+  static Map<String, dynamic> exportMortarAsJson(String mortarType) {
+    if (!_initialized) initialize();
+    final tables = getTables(mortarType);
+    if (tables.isEmpty) {
+      throw FormatException('Mortar "$mortarType" is not available');
+    }
+
+    return {
+      'mortar': mortarType,
+      'charges': tables
+          .map((table) => {
+                'charge': table.charge,
+                'table': table.table
+                    .map((row) => {
+                          'range': row.range,
+                          'elevation': row.elevation,
+                          'timeOfFlight': row.timeOfFlight,
+                        })
+                    .toList(growable: false),
+              })
+          .toList(growable: false),
+    };
+  }
+
+  /// Export all custom mortars.
+  static List<Map<String, dynamic>> exportCustomTables() {
+    if (!_initialized) initialize();
+    final exported = <Map<String, dynamic>>[];
+    for (final mortar in customMortars) {
+      exported.add(exportMortarAsJson(mortar));
+    }
+    return exported;
+  }
+
+  /// Export all custom mortars as JSON string.
+  static String exportCustomTablesJson({bool pretty = false}) {
+    final payload = {
+      'mortars': exportCustomTables(),
+    };
+    return pretty
+        ? const JsonEncoder.withIndent('  ').convert(payload)
+        : jsonEncode(payload);
+  }
+
+  static double? _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  static int? _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   /// Clear all tables
   static void clear() {
     _tables.clear();
+    _customMortars.clear();
     _initialized = false;
   }
 }

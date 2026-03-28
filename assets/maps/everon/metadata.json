@@ -1,8 +1,10 @@
-﻿{
-    "pixelsPerMeter":  0.5,
-    "name":  "Everon",
-    "worldSize":  10240,
-    "description":  "Arma Reforger Everon terrain - 10.24km x 10.24km",
-    "gridSize":  100,
-    "image":  "map.jpg"
+{
+  "name": "Everon",
+  "image": "map.jpg",
+  "worldSize": 12800,
+  "gridSize": 100,
+  "pixelsPerMeter": 1.2578125,
+  "imageWidth": 16100,
+  "imageHeight": 16100,
+  "description": "Arma Reforger Everon terrain - 12.8km x 12.8km"
 }

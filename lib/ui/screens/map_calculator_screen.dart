@@ -13,8 +13,26 @@ import '../../maps/maps.dart';
 import '../../models/models.dart';
 import '../widgets/firing_solution_card.dart';
 
-class MapCalculatorScreen extends StatelessWidget {
+class MapCalculatorScreen extends StatefulWidget {
   const MapCalculatorScreen({super.key});
+
+  @override
+  State<MapCalculatorScreen> createState() => _MapCalculatorScreenState();
+}
+
+class _MapCalculatorScreenState extends State<MapCalculatorScreen> {
+  bool _calibrationMode = false;
+
+  Future<void> _openCalibrationDialog(
+      BuildContext context, MapState state) async {
+    if (mounted) {
+      setState(() => _calibrationMode = true);
+    }
+    await _showCalibrationDialog(context, state);
+    if (mounted) {
+      setState(() => _calibrationMode = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +60,7 @@ class MapCalculatorScreen extends StatelessWidget {
             tooltip: 'Map menu',
             onSelected: (value) {
               if (value == '__calibrate__') {
-                _showCalibrationDialog(context, context.read<MapCubit>().state);
+                _openCalibrationDialog(context, context.read<MapCubit>().state);
                 return;
               }
               if (value == '__add_map__') {
@@ -158,6 +176,7 @@ class MapCalculatorScreen extends StatelessWidget {
                 calibrationOffsetY: state.calibrationOffsetY,
                 calibrationScaleX: state.calibrationScaleX,
                 calibrationScaleY: state.calibrationScaleY,
+                calibrationMode: _calibrationMode,
               ),
               Positioned(
                 bottom: 0,
@@ -377,28 +396,37 @@ class MapCalculatorScreen extends StatelessWidget {
     worldSizeController.dispose();
   }
 
-  void _showCalibrationDialog(BuildContext context, MapState state) {
+  Future<void> _showCalibrationDialog(
+      BuildContext context, MapState state) async {
     final cubit = context.read<MapCubit>();
+    final initialOffsetX = state.calibrationOffsetX;
+    final initialOffsetY = state.calibrationOffsetY;
+    final initialScaleX = state.calibrationScaleX;
+    final initialScaleY = state.calibrationScaleY;
+    var didSave = false;
 
-    showModalBottomSheet<void>(
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (sheetContext) {
-        double offsetX = state.calibrationOffsetX;
-        double offsetY = state.calibrationOffsetY;
-        double scaleX = state.calibrationScaleX;
-        double scaleY = state.calibrationScaleY;
+        double offsetX = initialOffsetX;
+        double offsetY = initialOffsetY;
+        double scaleX = initialScaleX;
+        double scaleY = initialScaleY;
         double stepPercent = 0.10;
+        const pivotX = 0.5;
+        const pivotY = 0.5;
 
         return StatefulBuilder(
           builder: (context, setLocalState) {
-            void applyCurrent() {
+            void previewCurrent() {
               cubit.setCalibration(
                 offsetX: offsetX,
                 offsetY: offsetY,
                 scaleX: scaleX,
                 scaleY: scaleY,
+                persist: false,
               );
             }
 
@@ -412,10 +440,22 @@ class MapCalculatorScreen extends StatelessWidget {
               setLocalState(() {
                 offsetX += dx * step;
                 offsetY += dy * step;
-                scaleX += dsx * step;
-                scaleY += dsy * step;
+                if (dsx != 0) {
+                  final nextScaleX =
+                      (scaleX + dsx * step).clamp(0.5, 1.5).toDouble();
+                  offsetX += (scaleX - nextScaleX) * pivotX;
+                  scaleX = nextScaleX;
+                }
+                if (dsy != 0) {
+                  final nextScaleY =
+                      (scaleY + dsy * step).clamp(0.5, 1.5).toDouble();
+                  offsetY += (scaleY - nextScaleY) * pivotY;
+                  scaleY = nextScaleY;
+                }
+                offsetX = offsetX.clamp(-0.5, 0.5).toDouble();
+                offsetY = offsetY.clamp(-0.5, 0.5).toDouble();
               });
-              applyCurrent();
+              previewCurrent();
             }
 
             Widget nudgeButton({
@@ -519,7 +559,8 @@ class MapCalculatorScreen extends StatelessWidget {
                                     'OffsetX: ${(offsetX * 100).toStringAsFixed(2)}%  '
                                     'OffsetY: ${(offsetY * 100).toStringAsFixed(2)}%\n'
                                     'ScaleX: x${scaleX.toStringAsFixed(4)}  '
-                                    'ScaleY: x${scaleY.toStringAsFixed(4)}',
+                                    'ScaleY: x${scaleY.toStringAsFixed(4)}\n'
+                                    'Grid size: ${state.currentMetadata?.gridSize.toStringAsFixed(0) ?? '-'}m',
                                     style: TextStyle(
                                       color: AppTheme.textPrimary,
                                       fontFamily: 'monospace',
@@ -602,21 +643,30 @@ class MapCalculatorScreen extends StatelessWidget {
                                   children: [
                                     TextButton(
                                       onPressed: () {
-                                        cubit.resetCalibration();
                                         setLocalState(() {
                                           offsetX = 0;
                                           offsetY = 0;
                                           scaleX = 1;
                                           scaleY = 1;
                                         });
+                                        previewCurrent();
                                       },
                                       child: const Text('RESET'),
                                     ),
                                     const Spacer(),
                                     ElevatedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(sheetContext),
-                                      child: const Text('APPLY'),
+                                      onPressed: () {
+                                        didSave = true;
+                                        cubit.setCalibration(
+                                          offsetX: offsetX,
+                                          offsetY: offsetY,
+                                          scaleX: scaleX,
+                                          scaleY: scaleY,
+                                          persist: true,
+                                        );
+                                        Navigator.pop(sheetContext);
+                                      },
+                                      child: const Text('SAVE'),
                                     ),
                                   ],
                                 ),
@@ -634,6 +684,16 @@ class MapCalculatorScreen extends StatelessWidget {
         );
       },
     );
+
+    if (!didSave) {
+      cubit.setCalibration(
+        offsetX: initialOffsetX,
+        offsetY: initialOffsetY,
+        scaleX: initialScaleX,
+        scaleY: initialScaleY,
+        persist: false,
+      );
+    }
   }
 }
 
@@ -656,6 +716,7 @@ class _MapCanvas extends StatefulWidget {
   final double calibrationOffsetY;
   final double calibrationScaleX;
   final double calibrationScaleY;
+  final bool calibrationMode;
 
   const _MapCanvas({
     required this.metadata,
@@ -676,6 +737,7 @@ class _MapCanvas extends StatefulWidget {
     required this.calibrationOffsetY,
     required this.calibrationScaleX,
     required this.calibrationScaleY,
+    required this.calibrationMode,
   });
 
   @override
@@ -684,17 +746,36 @@ class _MapCanvas extends StatefulWidget {
 
 class _MapCanvasState extends State<_MapCanvas> {
   late final TransformationController _controller;
+  final GlobalKey _gestureLayerKey = GlobalKey();
+  bool _isUserInteracting = false;
+  Size _lastViewportSize = Size.zero;
+  Size _lastSceneSize = Size.zero;
+  Offset _lastBaseOffset = Offset.zero;
 
   @override
   void initState() {
     super.initState();
-    _controller = TransformationController(_stateToMatrix());
+    _controller = TransformationController(Matrix4.identity());
   }
 
   @override
   void didUpdateWidget(covariant _MapCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final desired = _stateToMatrix();
+    if (_isUserInteracting) {
+      return;
+    }
+    if (_lastViewportSize.width <= 0 ||
+        _lastViewportSize.height <= 0 ||
+        _lastSceneSize.width <= 0 ||
+        _lastSceneSize.height <= 0) {
+      return;
+    }
+    final desired = _stateToMatrix(
+      baseOffset: _lastBaseOffset,
+      zoom: widget.zoomLevel,
+      panX: widget.panX,
+      panY: widget.panY,
+    );
     if (!_isMatrixClose(_controller.value, desired)) {
       _controller.value = desired;
     }
@@ -706,10 +787,19 @@ class _MapCanvasState extends State<_MapCanvas> {
     super.dispose();
   }
 
-  Matrix4 _stateToMatrix() {
-    return Matrix4.identity()
-      ..translate(widget.panX, widget.panY)
-      ..scale(widget.zoomLevel);
+  Matrix4 _stateToMatrix({
+    required Offset baseOffset,
+    required double zoom,
+    required double panX,
+    required double panY,
+  }) {
+    final matrix = Matrix4.identity();
+    matrix.setEntry(0, 0, zoom);
+    matrix.setEntry(1, 1, zoom);
+    matrix.setEntry(2, 2, 1);
+    matrix.setEntry(3, 3, 1);
+    matrix.setTranslationRaw(baseOffset.dx + panX, baseOffset.dy + panY, 0);
+    return matrix;
   }
 
   bool _isMatrixClose(Matrix4 a, Matrix4 b) {
@@ -727,20 +817,50 @@ class _MapCanvasState extends State<_MapCanvas> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final mapSize = math.max(constraints.maxWidth, constraints.maxHeight);
+        final viewportWidth = constraints.maxWidth;
+        final viewportHeight = constraints.maxHeight;
+        final imageAspect = widget.metadata.imageWidth / widget.metadata.imageHeight;
 
-        Position? sceneToWorld(Offset scenePosition) {
-          final localX = scenePosition.dx;
-          final localY = scenePosition.dy;
+        var mapWidth = viewportWidth;
+        var mapHeight = mapWidth / imageAspect;
+        if (mapHeight > viewportHeight) {
+          mapHeight = viewportHeight;
+          mapWidth = mapHeight * imageAspect;
+        }
+
+        final baseOffset = Offset(
+          (viewportWidth - mapWidth) / 2,
+          (viewportHeight - mapHeight) / 2,
+        );
+
+        _lastViewportSize = Size(viewportWidth, viewportHeight);
+        _lastSceneSize = Size(mapWidth, mapHeight);
+        _lastBaseOffset = baseOffset;
+
+        if (!_isUserInteracting) {
+          final desired = _stateToMatrix(
+            baseOffset: baseOffset,
+            zoom: widget.zoomLevel,
+            panX: widget.panX,
+            panY: widget.panY,
+          );
+          if (!_isMatrixClose(_controller.value, desired)) {
+            _controller.value = desired;
+          }
+        }
+
+        Position? sceneToWorld(Offset scenePoint) {
+          final localX = scenePoint.dx;
+          final localY = scenePoint.dy;
           if (localX < 0 ||
               localY < 0 ||
-              localX > mapSize ||
-              localY > mapSize) {
+              localX > mapWidth ||
+              localY > mapHeight) {
             return null;
           }
 
-          final normalizedX = localX / mapSize;
-          final normalizedY = localY / mapSize;
+          final normalizedX = localX / mapWidth;
+          final normalizedY = localY / mapHeight;
           final correctedX = ((normalizedX - widget.calibrationOffsetX) /
                   widget.calibrationScaleX)
               .clamp(0.0, 1.0);
@@ -749,8 +869,28 @@ class _MapCanvasState extends State<_MapCanvas> {
               .clamp(0.0, 1.0);
 
           final worldX = correctedX * widget.metadata.worldSize;
-          final worldY = (1 - correctedY) * widget.metadata.worldSize;
+          final worldY = (1 - correctedY) * widget.metadata.worldHeight;
           return Position(x: worldX, y: worldY);
+        }
+
+        Offset viewportToScene(Offset viewportPoint) {
+          final inverted = Matrix4.copy(_controller.value);
+          final determinant = inverted.invert();
+          if (determinant == 0) {
+            return viewportPoint;
+          }
+          return MatrixUtils.transformPoint(inverted, viewportPoint);
+        }
+
+        Position? pointerToWorld(Offset globalPoint) {
+          final context = _gestureLayerKey.currentContext;
+          if (context == null) return null;
+          final renderObject = context.findRenderObject();
+          if (renderObject is! RenderBox) return null;
+
+          final viewportPoint = renderObject.globalToLocal(globalPoint);
+          final scenePoint = viewportToScene(viewportPoint);
+          return sceneToWorld(scenePoint);
         }
 
         return Container(
@@ -759,17 +899,16 @@ class _MapCanvasState extends State<_MapCanvas> {
             children: [
               Positioned.fill(
                 child: GestureDetector(
+                  key: _gestureLayerKey,
                   behavior: HitTestBehavior.opaque,
                   onTapUp: (details) {
-                    final scene = _controller.toScene(details.localPosition);
-                    final world = sceneToWorld(scene);
+                    final world = pointerToWorld(details.globalPosition);
                     if (world != null) {
                       widget.onTapPosition(world);
                     }
                   },
                   onLongPressStart: (details) {
-                    final scene = _controller.toScene(details.localPosition);
-                    final world = sceneToWorld(scene);
+                    final world = pointerToWorld(details.globalPosition);
                     if (world != null) {
                       widget.onLongPressPosition(world);
                     }
@@ -778,23 +917,29 @@ class _MapCanvasState extends State<_MapCanvas> {
                     transformationController: _controller,
                     panEnabled: true,
                     scaleEnabled: true,
-                    clipBehavior: Clip.none,
+                    clipBehavior: Clip.hardEdge,
                     constrained: false,
                     minScale: 0.5,
                     maxScale: 8.0,
-                    boundaryMargin: const EdgeInsets.all(10000),
-                    alignment: Alignment.center,
+                    boundaryMargin: EdgeInsets.symmetric(
+                      horizontal: viewportWidth,
+                      vertical: viewportHeight,
+                    ),
+                    onInteractionStart: (_) {
+                      _isUserInteracting = true;
+                    },
                     onInteractionEnd: (_) {
+                      _isUserInteracting = false;
                       final matrix = _controller.value.storage;
                       widget.onViewChanged(
                         _controller.value.getMaxScaleOnAxis(),
-                        matrix[12],
-                        matrix[13],
+                        matrix[12] - baseOffset.dx,
+                        matrix[13] - baseOffset.dy,
                       );
                     },
                     child: SizedBox(
-                      width: mapSize,
-                      height: mapSize,
+                      width: mapWidth,
+                      height: mapHeight,
                       child: Stack(
                         children: [
                           Positioned.fill(child: _buildMapImage()),
@@ -811,6 +956,7 @@ class _MapCanvasState extends State<_MapCanvas> {
                                 calibrationOffsetY: widget.calibrationOffsetY,
                                 calibrationScaleX: widget.calibrationScaleX,
                                 calibrationScaleY: widget.calibrationScaleY,
+                                calibrationMode: widget.calibrationMode,
                               ),
                             ),
                           ),
@@ -843,7 +989,7 @@ class _MapCanvasState extends State<_MapCanvas> {
     if (path.startsWith('assets/')) {
       return Image.asset(
         path,
-        fit: BoxFit.fill,
+        fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
         errorBuilder: (context, _, __) => _mapUnavailable(),
       );
@@ -851,7 +997,7 @@ class _MapCanvasState extends State<_MapCanvas> {
 
     return Image.file(
       File(path),
-      fit: BoxFit.fill,
+      fit: BoxFit.contain,
       filterQuality: FilterQuality.medium,
       errorBuilder: (context, _, __) => _mapUnavailable(),
     );
@@ -880,6 +1026,7 @@ class _MapOverlayPainter extends CustomPainter {
   final double calibrationOffsetY;
   final double calibrationScaleX;
   final double calibrationScaleY;
+  final bool calibrationMode;
 
   _MapOverlayPainter({
     required this.metadata,
@@ -892,6 +1039,7 @@ class _MapOverlayPainter extends CustomPainter {
     required this.calibrationOffsetY,
     required this.calibrationScaleX,
     required this.calibrationScaleY,
+    required this.calibrationMode,
   });
 
   @override
@@ -928,10 +1076,11 @@ class _MapOverlayPainter extends CustomPainter {
     }
 
     final center = _worldToPixel(mortar.position, size);
-    final radiusX =
-        (maxRange / metadata.worldSize) * calibrationScaleX * size.width;
-    final radiusY =
-        (maxRange / metadata.worldSize) * calibrationScaleY * size.height;
+    final radiusImagePixels = maxRange / metadata.metersPerPixel;
+    final displayScaleX = size.width / metadata.imageWidth;
+    final displayScaleY = size.height / metadata.imageHeight;
+    final radiusX = radiusImagePixels * displayScaleX * calibrationScaleX;
+    final radiusY = radiusImagePixels * displayScaleY * calibrationScaleY;
     if (radiusX <= 1 || radiusY <= 1) {
       return;
     }
@@ -963,9 +1112,13 @@ class _MapOverlayPainter extends CustomPainter {
   }
 
   void _drawGrid(Canvas canvas, Size size) {
+    final safeZoom = zoomLevel.clamp(0.25, 8.0);
+    final gridColor = calibrationMode
+        ? const Color(0xFF3BFF5B)
+        : AppTheme.gridLine.withValues(alpha: 0.35);
     final paint = Paint()
-      ..color = AppTheme.gridLine.withOpacity(0.35)
-      ..strokeWidth = 0.6;
+      ..color = gridColor
+      ..strokeWidth = (calibrationMode ? 1.6 : 0.6) / math.sqrt(safeZoom);
 
     for (double worldX = 0;
         worldX <= metadata.worldSize;
@@ -976,10 +1129,10 @@ class _MapOverlayPainter extends CustomPainter {
       canvas.drawLine(Offset(pixelX, 0), Offset(pixelX, size.height), paint);
     }
     for (double worldY = 0;
-        worldY <= metadata.worldSize;
+        worldY <= metadata.worldHeight;
         worldY += metadata.gridSize) {
       final normalizedY = calibrationOffsetY +
-          calibrationScaleY * (1 - (worldY / metadata.worldSize));
+          calibrationScaleY * (1 - (worldY / metadata.worldHeight));
       final pixelY = normalizedY * size.height;
       canvas.drawLine(Offset(0, pixelY), Offset(size.width, pixelY), paint);
     }
@@ -1070,7 +1223,7 @@ class _MapOverlayPainter extends CustomPainter {
     final normalizedX = calibrationOffsetX +
         calibrationScaleX * (position.x / metadata.worldSize);
     final normalizedY = calibrationOffsetY +
-        calibrationScaleY * (1 - (position.y / metadata.worldSize));
+        calibrationScaleY * (1 - (position.y / metadata.worldHeight));
 
     final x = normalizedX * size.width;
     final y = normalizedY * size.height;
@@ -1097,7 +1250,8 @@ class _MapOverlayPainter extends CustomPainter {
         oldDelegate.calibrationOffsetX != calibrationOffsetX ||
         oldDelegate.calibrationOffsetY != calibrationOffsetY ||
         oldDelegate.calibrationScaleX != calibrationScaleX ||
-        oldDelegate.calibrationScaleY != calibrationScaleY;
+        oldDelegate.calibrationScaleY != calibrationScaleY ||
+        oldDelegate.calibrationMode != calibrationMode;
   }
 }
 

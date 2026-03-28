@@ -1,5 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/services.dart';
 import '../../models/models.dart';
 import '../../maps/maps.dart';
 import '../../ballistics/ballistics.dart';
@@ -255,6 +261,7 @@ class MapCubit extends Cubit<MapState> {
     required double offsetY,
     required double scaleX,
     required double scaleY,
+    bool persist = true,
   }) {
     final clampedOffsetX = offsetX.clamp(-0.5, 0.5).toDouble();
     final clampedOffsetY = offsetY.clamp(-0.5, 0.5).toDouble();
@@ -267,18 +274,22 @@ class MapCubit extends Cubit<MapState> {
       calibrationScaleX: clampedScaleX,
       calibrationScaleY: clampedScaleY,
     ));
-    _saveState();
+    if (persist) {
+      _saveState();
+    }
   }
 
   /// Reset calibration to default.
-  void resetCalibration() {
+  void resetCalibration({bool persist = true}) {
     emit(state.copyWith(
       calibrationOffsetX: 0,
       calibrationOffsetY: 0,
       calibrationScaleX: 1,
       calibrationScaleY: 1,
     ));
-    _saveState();
+    if (persist) {
+      _saveState();
+    }
   }
 
   /// Register user-provided map image with custom name.
@@ -295,12 +306,15 @@ class MapCubit extends Cubit<MapState> {
     }
 
     final safeName = _uniqueMapName(trimmedName);
+    final imageDimensions = await _resolveImageDimensions(imagePath);
     final metadata = MapMetadata(
       name: safeName,
       image: imagePath.split(RegExp(r'[\\/]')).last,
       worldSize: worldSize,
       gridSize: gridSize,
       pixelsPerMeter: 1.0,
+      imageWidth: imageDimensions.width,
+      imageHeight: imageDimensions.height,
       description: 'Custom user map',
     );
 
@@ -396,7 +410,8 @@ class MapCubit extends Cubit<MapState> {
   /// Convert screen coordinates to world coordinates
   Position? screenToWorld(
       double screenX, double screenY, double imageWidth, double imageHeight) {
-    if (state.currentMetadata == null) return null;
+    final metadata = state.currentMetadata;
+    if (metadata == null) return null;
 
     // Account for zoom and pan
     final adjustedX = (screenX - state.panX) / state.zoomLevel / imageWidth;
@@ -410,28 +425,58 @@ class MapCubit extends Cubit<MapState> {
             .clamp(0.0, 1.0);
 
     return Position(
-      x: normalizedX * state.currentMetadata!.worldSize,
-      y: (1 - normalizedY) * state.currentMetadata!.worldSize,
+      x: normalizedX * metadata.worldSize,
+      y: (1 - normalizedY) * metadata.worldHeight,
     );
   }
 
   /// Convert world coordinates to screen coordinates
   ({double x, double y})? worldToScreen(
       Position position, double imageWidth, double imageHeight) {
-    if (state.currentMetadata == null) return null;
+    final metadata = state.currentMetadata;
+    if (metadata == null) return null;
 
     final normalizedX = state.calibrationOffsetX +
-        state.calibrationScaleX *
-            (position.x / state.currentMetadata!.worldSize);
+        state.calibrationScaleX * (position.x / metadata.worldSize);
     final normalizedY = state.calibrationOffsetY +
-        state.calibrationScaleY *
-            (1 - (position.y / state.currentMetadata!.worldSize));
+        state.calibrationScaleY * (1 - (position.y / metadata.worldHeight));
 
     // Account for zoom and pan
     return (
       x: normalizedX * imageWidth * state.zoomLevel + state.panX,
       y: normalizedY * imageHeight * state.zoomLevel + state.panY,
     );
+  }
+
+  Future<({double width, double height})> _resolveImageDimensions(
+      String imagePath) async {
+    try {
+      Uint8List bytes;
+      if (imagePath.startsWith('assets/')) {
+        final data = await rootBundle.load(imagePath);
+        bytes = data.buffer.asUint8List();
+      } else {
+        final file = File(imagePath);
+        if (!await file.exists()) {
+          return (width: 4096, height: 4096);
+        }
+        bytes = await file.readAsBytes();
+      }
+
+      final decoded = await _decodeImage(bytes);
+      return (
+        width: decoded.width.toDouble(),
+        height: decoded.height.toDouble(),
+      );
+    } catch (_) {
+      return (width: 4096, height: 4096);
+    }
+  }
+
+  Future<ui.Image> _decodeImage(Uint8List bytes) {
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromList(bytes, completer.complete);
+    return completer.future;
   }
 
   /// Get distance between mortar and target

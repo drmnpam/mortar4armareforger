@@ -198,6 +198,8 @@ class MapLoader {
       worldSize: worldSize,
       gridSize: 100,
       pixelsPerMeter: 0.5,
+      imageWidth: 4096,
+      imageHeight: 4096,
     );
   }
 
@@ -208,6 +210,7 @@ class MapLoader {
     if (metadata.worldSize <= 0) return false;
     if (metadata.gridSize <= 0) return false;
     if (metadata.pixelsPerMeter <= 0) return false;
+    if (metadata.imageWidth <= 0 || metadata.imageHeight <= 0) return false;
 
     // Check reasonable bounds
     if (metadata.worldSize > 100000) return false; // > 100km
@@ -219,8 +222,7 @@ class MapLoader {
   /// Get map dimensions in pixels
   static ({double width, double height}) getMapDimensions(
       MapMetadata metadata) {
-    final size = metadata.worldSize * metadata.pixelsPerMeter;
-    return (width: size, height: size);
+    return (width: metadata.imageWidth, height: metadata.imageHeight);
   }
 
   /// Clear cache
