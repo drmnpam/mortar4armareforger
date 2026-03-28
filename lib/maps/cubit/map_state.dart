@@ -15,6 +15,10 @@ class MapState extends Equatable {
   
   final bool showGrid;
   final bool showDistanceLine;
+  final double calibrationOffsetX;
+  final double calibrationOffsetY;
+  final double calibrationScaleX;
+  final double calibrationScaleY;
   
   final String selectedMortar;
   final FiringSolution? solution;
@@ -34,6 +38,10 @@ class MapState extends Equatable {
     required this.panY,
     required this.showGrid,
     required this.showDistanceLine,
+    required this.calibrationOffsetX,
+    required this.calibrationOffsetY,
+    required this.calibrationScaleX,
+    required this.calibrationScaleY,
     required this.selectedMortar,
     this.solution,
     required this.hasMortar,
@@ -54,6 +62,10 @@ class MapState extends Equatable {
       panY: 0,
       showGrid: true,
       showDistanceLine: true,
+      calibrationOffsetX: 0,
+      calibrationOffsetY: 0,
+      calibrationScaleX: 1,
+      calibrationScaleY: 1,
       selectedMortar: 'M252',
       solution: null,
       hasMortar: false,
@@ -74,6 +86,10 @@ class MapState extends Equatable {
     double? panY,
     bool? showGrid,
     bool? showDistanceLine,
+    double? calibrationOffsetX,
+    double? calibrationOffsetY,
+    double? calibrationScaleX,
+    double? calibrationScaleY,
     String? selectedMortar,
     FiringSolution? solution,
     bool? hasMortar,
@@ -94,6 +110,10 @@ class MapState extends Equatable {
       panY: panY ?? this.panY,
       showGrid: showGrid ?? this.showGrid,
       showDistanceLine: showDistanceLine ?? this.showDistanceLine,
+      calibrationOffsetX: calibrationOffsetX ?? this.calibrationOffsetX,
+      calibrationOffsetY: calibrationOffsetY ?? this.calibrationOffsetY,
+      calibrationScaleX: calibrationScaleX ?? this.calibrationScaleX,
+      calibrationScaleY: calibrationScaleY ?? this.calibrationScaleY,
       selectedMortar: selectedMortar ?? this.selectedMortar,
       solution: clearSolution ? null : solution ?? this.solution,
       hasMortar: hasMortar ?? this.hasMortar,
@@ -115,6 +135,10 @@ class MapState extends Equatable {
     panY,
     showGrid,
     showDistanceLine,
+    calibrationOffsetX,
+    calibrationOffsetY,
+    calibrationScaleX,
+    calibrationScaleY,
     selectedMortar,
     solution,
     hasMortar,

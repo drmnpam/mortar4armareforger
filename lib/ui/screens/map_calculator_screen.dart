@@ -34,6 +34,11 @@ class MapCalculatorScreen extends StatelessWidget {
             tooltip: 'Toggle distance line',
             onPressed: () => context.read<MapCubit>().toggleDistanceLine(),
           ),
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Grid calibration',
+            onPressed: () => _showCalibrationDialog(context, context.read<MapCubit>().state),
+          ),
           PopupMenuButton<String>(
             onSelected: (value) => context.read<MapCubit>().loadMap(value),
             itemBuilder: (context) {
@@ -97,6 +102,10 @@ class MapCalculatorScreen extends StatelessWidget {
                 onLongPressPosition: (position) {
                   context.read<MapCubit>().addMortar(position);
                 },
+                calibrationOffsetX: state.calibrationOffsetX,
+                calibrationOffsetY: state.calibrationOffsetY,
+                calibrationScaleX: state.calibrationScaleX,
+                calibrationScaleY: state.calibrationScaleY,
               ),
               Positioned(
                 bottom: 0,
@@ -149,6 +158,205 @@ class MapCalculatorScreen extends StatelessWidget {
 
     cubit.addTarget(position);
   }
+
+  void _showCalibrationDialog(BuildContext context, MapState state) {
+    final cubit = context.read<MapCubit>();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        double offsetX = state.calibrationOffsetX;
+        double offsetY = state.calibrationOffsetY;
+        double scaleX = state.calibrationScaleX;
+        double scaleY = state.calibrationScaleY;
+        double stepPercent = 0.10; // 0.10%
+
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            void applyCurrent() {
+              cubit.setCalibration(
+                offsetX: offsetX,
+                offsetY: offsetY,
+                scaleX: scaleX,
+                scaleY: scaleY,
+              );
+            }
+
+            void nudge({
+              double dx = 0,
+              double dy = 0,
+              double dsx = 0,
+              double dsy = 0,
+              bool autoApply = true,
+            }) {
+              final step = stepPercent / 100.0;
+              setLocalState(() {
+                offsetX += dx * step;
+                offsetY += dy * step;
+                scaleX += dsx * step;
+                scaleY += dsy * step;
+              });
+              if (autoApply) {
+                applyCurrent();
+              }
+            }
+
+            Widget nudgeButton({
+              required String label,
+              required VoidCallback onPressed,
+            }) {
+              return Expanded(
+                child: OutlinedButton(
+                  onPressed: onPressed,
+                  child: Text(label),
+                ),
+              );
+            }
+
+            return AlertDialog(
+              backgroundColor: AppTheme.surface,
+              title: Text(
+                'GRID CALIBRATION',
+                style: TextStyle(color: AppTheme.textPrimary),
+              ),
+              content: SizedBox(
+                width: 460,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Use buttons to align grid. Apply keeps this dialog open.',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Text(
+                          'Step:',
+                          style: TextStyle(color: AppTheme.textSecondary),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SegmentedButton<double>(
+                            segments: const [
+                              ButtonSegment(value: 0.05, label: Text('0.05%')),
+                              ButtonSegment(value: 0.10, label: Text('0.10%')),
+                              ButtonSegment(value: 0.25, label: Text('0.25%')),
+                              ButtonSegment(value: 0.50, label: Text('0.50%')),
+                            ],
+                            selected: {stepPercent},
+                            onSelectionChanged: (value) {
+                              setLocalState(() => stepPercent = value.first);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceLight,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppTheme.gridLine),
+                      ),
+                      child: Text(
+                        'OffsetX: ${(offsetX * 100).toStringAsFixed(2)}%  '
+                        'OffsetY: ${(offsetY * 100).toStringAsFixed(2)}%\n'
+                        'ScaleX: ${(scaleX * 100).toStringAsFixed(2)}%  '
+                        'ScaleY: ${(scaleY * 100).toStringAsFixed(2)}%',
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Move Grid', style: TextStyle(color: AppTheme.textSecondary)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        nudgeButton(label: 'Left', onPressed: () => nudge(dx: -1)),
+                        const SizedBox(width: 8),
+                        nudgeButton(label: 'Right', onPressed: () => nudge(dx: 1)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        nudgeButton(label: 'Up', onPressed: () => nudge(dy: -1)),
+                        const SizedBox(width: 8),
+                        nudgeButton(label: 'Down', onPressed: () => nudge(dy: 1)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Resize Grid', style: TextStyle(color: AppTheme.textSecondary)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        nudgeButton(
+                          label: 'Smaller',
+                          onPressed: () => nudge(dsx: -1, dsy: -1),
+                        ),
+                        const SizedBox(width: 8),
+                        nudgeButton(
+                          label: 'Bigger',
+                          onPressed: () => nudge(dsx: 1, dsy: 1),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        nudgeButton(label: 'Width -', onPressed: () => nudge(dsx: -1)),
+                        const SizedBox(width: 8),
+                        nudgeButton(label: 'Width +', onPressed: () => nudge(dsx: 1)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        nudgeButton(label: 'Height -', onPressed: () => nudge(dsy: -1)),
+                        const SizedBox(width: 8),
+                        nudgeButton(label: 'Height +', onPressed: () => nudge(dsy: 1)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    cubit.resetCalibration();
+                    setLocalState(() {
+                      offsetX = 0;
+                      offsetY = 0;
+                      scaleX = 1;
+                      scaleY = 1;
+                    });
+                  },
+                  child: const Text('RESET'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('CLOSE'),
+                ),
+                ElevatedButton(
+                  onPressed: applyCurrent,
+                  child: const Text('APPLY'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _MapCanvas extends StatelessWidget {
@@ -164,6 +372,10 @@ class _MapCanvas extends StatelessWidget {
   final bool hasTarget;
   final ValueChanged<Position> onTapPosition;
   final ValueChanged<Position> onLongPressPosition;
+  final double calibrationOffsetX;
+  final double calibrationOffsetY;
+  final double calibrationScaleX;
+  final double calibrationScaleY;
 
   const _MapCanvas({
     required this.metadata,
@@ -178,6 +390,10 @@ class _MapCanvas extends StatelessWidget {
     required this.hasTarget,
     required this.onTapPosition,
     required this.onLongPressPosition,
+    required this.calibrationOffsetX,
+    required this.calibrationOffsetY,
+    required this.calibrationScaleX,
+    required this.calibrationScaleY,
   });
 
   @override
@@ -259,6 +475,10 @@ class _MapCanvas extends StatelessWidget {
                                 showGrid: showGrid,
                                 showDistanceLine: showDistanceLine,
                                 zoomLevel: zoomLevel,
+                                calibrationOffsetX: calibrationOffsetX,
+                                calibrationOffsetY: calibrationOffsetY,
+                                calibrationScaleX: calibrationScaleX,
+                                calibrationScaleY: calibrationScaleY,
                               ),
                             ),
                           ),
@@ -294,8 +514,15 @@ class _MapCanvas extends StatelessWidget {
       return null;
     }
 
-    final worldX = (localX / mapSize) * metadata.worldSize;
-    final worldY = ((mapSize - localY) / mapSize) * metadata.worldSize;
+    final normalizedX = localX / mapSize;
+    final normalizedY = localY / mapSize;
+    final correctedX =
+        ((normalizedX - calibrationOffsetX) / calibrationScaleX).clamp(0.0, 1.0);
+    final correctedY =
+        ((normalizedY - calibrationOffsetY) / calibrationScaleY).clamp(0.0, 1.0);
+
+    final worldX = correctedX * metadata.worldSize;
+    final worldY = (1 - correctedY) * metadata.worldSize;
     return Position(x: worldX, y: worldY);
   }
 }
@@ -306,6 +533,10 @@ class _MapOverlayPainter extends CustomPainter {
   final bool showGrid;
   final bool showDistanceLine;
   final double zoomLevel;
+  final double calibrationOffsetX;
+  final double calibrationOffsetY;
+  final double calibrationScaleX;
+  final double calibrationScaleY;
 
   _MapOverlayPainter({
     required this.metadata,
@@ -313,6 +544,10 @@ class _MapOverlayPainter extends CustomPainter {
     required this.showGrid,
     required this.showDistanceLine,
     required this.zoomLevel,
+    required this.calibrationOffsetX,
+    required this.calibrationOffsetY,
+    required this.calibrationScaleX,
+    required this.calibrationScaleY,
   });
 
   @override
@@ -339,13 +574,17 @@ class _MapOverlayPainter extends CustomPainter {
       ..color = AppTheme.gridLine.withOpacity(0.35)
       ..strokeWidth = 0.6;
 
-    final pixelsPerGrid = (metadata.gridSize / metadata.worldSize) * size.width;
-
-    for (double x = 0; x <= size.width; x += pixelsPerGrid) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    for (double worldX = 0; worldX <= metadata.worldSize; worldX += metadata.gridSize) {
+      final normalizedX =
+          calibrationOffsetX + calibrationScaleX * (worldX / metadata.worldSize);
+      final pixelX = normalizedX * size.width;
+      canvas.drawLine(Offset(pixelX, 0), Offset(pixelX, size.height), paint);
     }
-    for (double y = 0; y <= size.height; y += pixelsPerGrid) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    for (double worldY = 0; worldY <= metadata.worldSize; worldY += metadata.gridSize) {
+      final normalizedY =
+          calibrationOffsetY + calibrationScaleY * (1 - (worldY / metadata.worldSize));
+      final pixelY = normalizedY * size.height;
+      canvas.drawLine(Offset(0, pixelY), Offset(size.width, pixelY), paint);
     }
   }
 
@@ -428,8 +667,13 @@ class _MapOverlayPainter extends CustomPainter {
   }
 
   Offset _worldToPixel(Position position, Size size) {
-    final x = (position.x / metadata.worldSize) * size.width;
-    final y = (1 - (position.y / metadata.worldSize)) * size.height;
+    final normalizedX =
+        calibrationOffsetX + calibrationScaleX * (position.x / metadata.worldSize);
+    final normalizedY = calibrationOffsetY +
+        calibrationScaleY * (1 - (position.y / metadata.worldSize));
+
+    final x = normalizedX * size.width;
+    final y = normalizedY * size.height;
     return Offset(x, y);
   }
 
@@ -448,7 +692,11 @@ class _MapOverlayPainter extends CustomPainter {
         oldDelegate.markers != markers ||
         oldDelegate.showGrid != showGrid ||
         oldDelegate.showDistanceLine != showDistanceLine ||
-        oldDelegate.zoomLevel != zoomLevel;
+        oldDelegate.zoomLevel != zoomLevel ||
+        oldDelegate.calibrationOffsetX != calibrationOffsetX ||
+        oldDelegate.calibrationOffsetY != calibrationOffsetY ||
+        oldDelegate.calibrationScaleX != calibrationScaleX ||
+        oldDelegate.calibrationScaleY != calibrationScaleY;
   }
 }
 

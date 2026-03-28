@@ -55,8 +55,31 @@ class MapCubit extends Cubit<MapState> {
     
     // Try to restore saved markers
     final savedState = _storage.loadMapState(mapName);
+    double restoredZoom = 1.0;
+    double restoredPanX = 0.0;
+    double restoredPanY = 0.0;
+    double restoredCalibrationOffsetX = 0.0;
+    double restoredCalibrationOffsetY = 0.0;
+    double restoredCalibrationScaleX = 1.0;
+    double restoredCalibrationScaleY = 1.0;
+
     if (savedState != null && savedState['markers'] != null) {
       _markerManager.fromJson(savedState['markers'] as List<dynamic>);
+      restoredZoom = (savedState['zoom'] as num?)?.toDouble() ?? restoredZoom;
+      restoredPanX = (savedState['panX'] as num?)?.toDouble() ?? restoredPanX;
+      restoredPanY = (savedState['panY'] as num?)?.toDouble() ?? restoredPanY;
+      restoredCalibrationOffsetX =
+          (savedState['calibrationOffsetX'] as num?)?.toDouble() ??
+              restoredCalibrationOffsetX;
+      restoredCalibrationOffsetY =
+          (savedState['calibrationOffsetY'] as num?)?.toDouble() ??
+              restoredCalibrationOffsetY;
+      restoredCalibrationScaleX =
+          (savedState['calibrationScaleX'] as num?)?.toDouble() ??
+              restoredCalibrationScaleX;
+      restoredCalibrationScaleY =
+          (savedState['calibrationScaleY'] as num?)?.toDouble() ??
+              restoredCalibrationScaleY;
     }
     
     // Load last mortar position if available
@@ -73,6 +96,13 @@ class MapCubit extends Cubit<MapState> {
       markers: List.from(_markerManager.markers),
       hasMortar: _markerManager.mortarMarker != null,
       hasTarget: _markerManager.targetMarker != null,
+      zoomLevel: restoredZoom,
+      panX: restoredPanX,
+      panY: restoredPanY,
+      calibrationOffsetX: restoredCalibrationOffsetX,
+      calibrationOffsetY: restoredCalibrationOffsetY,
+      calibrationScaleX: restoredCalibrationScaleX,
+      calibrationScaleY: restoredCalibrationScaleY,
       clearError: true,
       clearSolution: true,
     ));
@@ -151,6 +181,40 @@ class MapCubit extends Cubit<MapState> {
   void toggleDistanceLine() {
     emit(state.copyWith(showDistanceLine: !state.showDistanceLine));
   }
+
+  /// Set calibration values for map/grid alignment.
+  /// Offset is normalized image shift (0.01 = 1%).
+  /// Scale is normalized image stretch (1.0 = default).
+  void setCalibration({
+    required double offsetX,
+    required double offsetY,
+    required double scaleX,
+    required double scaleY,
+  }) {
+    final clampedOffsetX = offsetX.clamp(-0.5, 0.5).toDouble();
+    final clampedOffsetY = offsetY.clamp(-0.5, 0.5).toDouble();
+    final clampedScaleX = scaleX.clamp(0.5, 1.5).toDouble();
+    final clampedScaleY = scaleY.clamp(0.5, 1.5).toDouble();
+
+    emit(state.copyWith(
+      calibrationOffsetX: clampedOffsetX,
+      calibrationOffsetY: clampedOffsetY,
+      calibrationScaleX: clampedScaleX,
+      calibrationScaleY: clampedScaleY,
+    ));
+    _saveState();
+  }
+
+  /// Reset calibration to default.
+  void resetCalibration() {
+    emit(state.copyWith(
+      calibrationOffsetX: 0,
+      calibrationOffsetY: 0,
+      calibrationScaleX: 1,
+      calibrationScaleY: 1,
+    ));
+    _saveState();
+  }
   
   /// Save current state
   void _saveState() {
@@ -160,6 +224,10 @@ class MapCubit extends Cubit<MapState> {
         'zoom': state.zoomLevel,
         'panX': state.panX,
         'panY': state.panY,
+        'calibrationOffsetX': state.calibrationOffsetX,
+        'calibrationOffsetY': state.calibrationOffsetY,
+        'calibrationScaleX': state.calibrationScaleX,
+        'calibrationScaleY': state.calibrationScaleY,
       });
     }
   }
@@ -214,32 +282,36 @@ class MapCubit extends Cubit<MapState> {
     if (state.currentMetadata == null) return null;
     
     // Account for zoom and pan
-    final adjustedX = (screenX - state.panX) / state.zoomLevel;
-    final adjustedY = (screenY - state.panY) / state.zoomLevel;
-    
-    return CoordinateConverter.pixelToWorld(
-      adjustedX,
-      adjustedY,
-      state.currentMetadata!,
-      imageHeight,
+    final adjustedX = (screenX - state.panX) / state.zoomLevel / imageWidth;
+    final adjustedY = (screenY - state.panY) / state.zoomLevel / imageHeight;
+
+    final normalizedX =
+        ((adjustedX - state.calibrationOffsetX) / state.calibrationScaleX)
+            .clamp(0.0, 1.0);
+    final normalizedY =
+        ((adjustedY - state.calibrationOffsetY) / state.calibrationScaleY)
+            .clamp(0.0, 1.0);
+
+    return Position(
+      x: normalizedX * state.currentMetadata!.worldSize,
+      y: (1 - normalizedY) * state.currentMetadata!.worldSize,
     );
   }
   
   /// Convert world coordinates to screen coordinates
   ({double x, double y})? worldToScreen(Position position, double imageWidth, double imageHeight) {
     if (state.currentMetadata == null) return null;
-    
-    final pixel = CoordinateConverter.worldToPixel(
-      position,
-      state.currentMetadata!,
-      imageWidth,
-      imageHeight,
-    );
-    
+
+    final normalizedX = state.calibrationOffsetX +
+        state.calibrationScaleX * (position.x / state.currentMetadata!.worldSize);
+    final normalizedY = state.calibrationOffsetY +
+        state.calibrationScaleY *
+            (1 - (position.y / state.currentMetadata!.worldSize));
+
     // Account for zoom and pan
     return (
-      x: pixel.x * state.zoomLevel + state.panX,
-      y: pixel.y * state.zoomLevel + state.panY,
+      x: normalizedX * imageWidth * state.zoomLevel + state.panX,
+      y: normalizedY * imageHeight * state.zoomLevel + state.panY,
     );
   }
   
