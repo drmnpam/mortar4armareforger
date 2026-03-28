@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme/app_theme.dart';
+import '../../maps/maps.dart';
 import '../../maps/cubit/map_cubit.dart';
 import '../../models/models.dart';
 import '../widgets/firing_solution_card.dart';

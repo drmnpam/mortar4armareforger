@@ -50,7 +50,6 @@ flutter:
   
   assets:
     - assets/tables/
-    - assets/images/
     - assets/maps/everon/
     - assets/maps/arland/
     - assets/maps/kolguev/
@@ -58,16 +57,6 @@ flutter:
     - assets/data_pack/maps/arland/
     - assets/data_pack/maps/kolguev/
     - assets/data_pack/tables/
-
-  fonts:
-    - family: RobotoMono
-      fonts:
-        - asset: fonts/RobotoMono-Regular.ttf
-        - asset: fonts/RobotoMono-Bold.ttf
-          weight: 700
-    - family: Stencil
-      fonts:
-        - asset: fonts/Stencil.ttf
 
   plugin:
     platforms:

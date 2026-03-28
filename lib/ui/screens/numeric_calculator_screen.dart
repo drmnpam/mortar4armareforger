@@ -57,7 +57,7 @@ class NumericCalculatorScreen extends StatelessWidget {
                   
                   // Calculate Button
                   ElevatedButton.icon(
-                    onPressed: state.hasValidInput
+                    onPressed: context.read<BallisticsCubit>().hasValidInput
                         ? () => context.read<BallisticsCubit>().calculate()
                         : null,
                     icon: const Icon(Icons.calculate),

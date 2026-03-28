@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:hive_flutter/hive_flutter.dart';
-import '../models/models.dart';
+import '../../models/models.dart';
 
 /// Storage service for offline data persistence
 class StorageService {

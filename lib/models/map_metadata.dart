@@ -41,10 +41,10 @@ class MapMetadata extends Equatable {
   });
 
   /// Convert world coordinates to pixel coordinates
-  Offset worldToPixel(double x, double y, double imageWidth, double imageHeight) {
+  MapOffset worldToPixel(double x, double y, double imageWidth, double imageHeight) {
     final pixelX = x * pixelsPerMeter;
     final pixelY = imageHeight - (y * pixelsPerMeter); // Flip Y axis
-    return Offset(pixelX, pixelY);
+    return MapOffset(pixelX, pixelY);
   }
 
   /// Convert pixel coordinates to world coordinates
@@ -89,11 +89,11 @@ class MapMetadata extends Equatable {
   String toString() => 'MapMetadata($name, ${worldSize}m x ${worldSize}m)';
 }
 
-class Offset {
+class MapOffset {
   final double dx;
   final double dy;
   
-  const Offset(this.dx, this.dy);
+  const MapOffset(this.dx, this.dy);
   
   double get distance => (dx * dx + dy * dy);
 }

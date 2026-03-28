@@ -12,104 +12,111 @@ class MainScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 32),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(
-                      Icons.explore,
-                      size: 64,
-                      color: AppTheme.accent,
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.explore,
+                            size: 64,
+                            color: AppTheme.accent,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'MORTAR CALCULATOR',
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              color: AppTheme.accent,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 3,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Arma Reforger Fire Control',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // Main Menu Buttons
+                    _MenuButton(
+                      icon: Icons.calculate,
+                      title: 'NUMERIC CALCULATOR',
+                      subtitle: 'Enter coordinates manually',
+                      onTap: () => context.push('/numeric'),
+                    ),
+                    
                     const SizedBox(height: 16),
+                    
+                    _MenuButton(
+                      icon: Icons.map,
+                      title: 'MAP CALCULATOR',
+                      subtitle: 'Visual map interface',
+                      onTap: () => context.push('/map'),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _MenuButton(
+                      icon: Icons.table_chart,
+                      title: 'BALLISTIC TABLES',
+                      subtitle: 'View firing tables',
+                      onTap: () => context.push('/tables'),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _MenuButton(
+                      icon: Icons.bookmark,
+                      title: 'SAVED TARGETS',
+                      subtitle: 'Manage target list',
+                      onTap: () => context.push('/saved'),
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Footer buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => context.push('/settings'),
+                            icon: const Icon(Icons.settings),
+                            label: const Text('SETTINGS'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 8),
+                    
                     Text(
-                      'MORTAR CALCULATOR',
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        color: AppTheme.accent,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 3,
+                      'OFFLINE MODE',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textMuted,
                       ),
                       textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Arma Reforger Fire Control',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
                     ),
                   ],
                 ),
               ),
-              
-              const SizedBox(height: 32),
-              
-              // Main Menu Buttons
-              _MenuButton(
-                icon: Icons.calculate,
-                title: 'NUMERIC CALCULATOR',
-                subtitle: 'Enter coordinates manually',
-                onTap: () => context.push('/numeric'),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              _MenuButton(
-                icon: Icons.map,
-                title: 'MAP CALCULATOR',
-                subtitle: 'Visual map interface',
-                onTap: () => context.push('/map'),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              _MenuButton(
-                icon: Icons.table_chart,
-                title: 'BALLISTIC TABLES',
-                subtitle: 'View firing tables',
-                onTap: () => context.push('/tables'),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              _MenuButton(
-                icon: Icons.bookmark,
-                title: 'SAVED TARGETS',
-                subtitle: 'Manage target list',
-                onTap: () => context.push('/saved'),
-              ),
-              
-              const Spacer(),
-              
-              // Footer buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => context.push('/settings'),
-                      icon: const Icon(Icons.settings),
-                      label: const Text('SETTINGS'),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 8),
-              
-              Text(
-                'OFFLINE MODE',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textMuted,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       ),

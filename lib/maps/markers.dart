@@ -88,7 +88,7 @@ class MapMarker {
       case MarkerType.target:
         return Icons.location_on;
       case MarkerType.splash:
-        return Icons.explosion;
+        return Icons.local_fire_department;
       case MarkerType.saved:
         return Icons.bookmark;
       case MarkerType.fireMission:

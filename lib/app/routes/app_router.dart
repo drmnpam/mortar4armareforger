@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../ui/screens/main_screen.dart';
-import '../ui/screens/numeric_calculator_screen.dart';
-import '../ui/screens/map_calculator_screen.dart';
-import '../ui/screens/tables_screen.dart';
-import '../ui/screens/settings_screen.dart';
-import '../ui/screens/saved_targets_screen.dart';
+import '../../ui/screens/main_screen.dart';
+import '../../ui/screens/numeric_calculator_screen.dart';
+import '../../ui/screens/map_calculator_screen.dart';
+import '../../ui/screens/tables_screen.dart';
+import '../../ui/screens/settings_screen.dart';
+import '../../ui/screens/saved_targets_screen.dart';
 
 class AppRouter {
   static final router = GoRouter(
