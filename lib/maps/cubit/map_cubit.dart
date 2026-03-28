@@ -18,28 +18,50 @@ class MapCubit extends Cubit<MapState> {
   }
 
   Future<void> _initialize() async {
+    emit(state.copyWith(isLoading: true, clearError: true));
+
     await MapLoader.initialize();
     await _storage.initialize();
     final customMaps = _storage.getCustomMaps();
     if (customMaps.isNotEmpty) {
       MapLoader.registerCustomMaps(customMaps);
     }
-    final maps = MapLoader.availableMaps;
+    final maps = List<String>.from(MapLoader.availableMaps);
 
     // Load preferred map
     final preferred = _storage.getPreferredMap();
-    final initialMap = (preferred != null && maps.contains(preferred))
-        ? preferred
-        : (maps.isNotEmpty ? maps.first : null);
+    String? initialMap;
+    if (preferred != null) {
+      for (final map in maps) {
+        if (map.toLowerCase() == preferred.toLowerCase()) {
+          initialMap = map;
+          break;
+        }
+      }
+    }
+
+    if (initialMap == null && maps.isNotEmpty) {
+      initialMap = maps.firstWhere(
+        (map) => MapLoader.getMetadata(map) != null,
+        orElse: () => maps.first,
+      );
+    }
 
     emit(state.copyWith(
       availableMaps: maps,
       selectedMap: initialMap,
+      isLoading: false,
     ));
 
     if (initialMap != null) {
       await loadMap(initialMap);
+      return;
     }
+
+    emit(state.copyWith(
+      isLoading: false,
+      error: 'No maps available',
+    ));
   }
 
   /// Load a map
@@ -49,7 +71,20 @@ class MapCubit extends Cubit<MapState> {
       clearError: true,
     ));
 
-    final metadata = MapLoader.getMetadata(mapName);
+    var resolvedMapName = mapName;
+    MapMetadata? metadata = MapLoader.getMetadata(resolvedMapName);
+
+    if (metadata == null) {
+      for (final candidate in state.availableMaps) {
+        final candidateMetadata = MapLoader.getMetadata(candidate);
+        if (candidateMetadata != null) {
+          resolvedMapName = candidate;
+          metadata = candidateMetadata;
+          break;
+        }
+      }
+    }
+
     if (metadata == null) {
       emit(state.copyWith(
         isLoading: false,
@@ -58,10 +93,10 @@ class MapCubit extends Cubit<MapState> {
       return;
     }
 
-    final imagePath = MapLoader.getMapImagePath(mapName);
+    final imagePath = MapLoader.getMapImagePath(resolvedMapName);
 
     // Try to restore saved markers
-    final savedState = _storage.loadMapState(mapName);
+    final savedState = _storage.loadMapState(resolvedMapName);
     double restoredZoom = 1.0;
     double restoredPanX = 0.0;
     double restoredPanY = 0.0;
@@ -96,7 +131,7 @@ class MapCubit extends Cubit<MapState> {
     }
 
     emit(state.copyWith(
-      selectedMap: mapName,
+      selectedMap: resolvedMapName,
       currentMetadata: metadata,
       mapImagePath: imagePath,
       isLoading: false,
@@ -114,7 +149,7 @@ class MapCubit extends Cubit<MapState> {
       clearSolution: true,
     ));
 
-    await _storage.setPreferredMap(mapName);
+    await _storage.setPreferredMap(resolvedMapName);
   }
 
   /// Add mortar marker at position

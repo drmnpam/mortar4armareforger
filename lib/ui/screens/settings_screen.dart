@@ -100,29 +100,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Card(
               child: Column(
                 children: [
-                  ListTile(
-                    leading: Icon(Icons.palette, color: AppTheme.accent),
-                    title: const Text('Theme Mode'),
-                    subtitle: const Text('Dark / Night (red)'),
-                    trailing: SegmentedButton<AppThemeMode>(
-                      segments: const [
-                        ButtonSegment<AppThemeMode>(
-                          value: AppThemeMode.dark,
-                          label: Text('Dark'),
-                          icon: Icon(Icons.dark_mode),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.palette, color: AppTheme.accent),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text('Theme Mode'),
+                              SizedBox(height: 4),
+                              Text('Dark / Night (red)'),
+                            ],
+                          ),
                         ),
-                        ButtonSegment<AppThemeMode>(
-                          value: AppThemeMode.night,
-                          label: Text('Night'),
-                          icon: Icon(Icons.nights_stay),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: SegmentedButton<AppThemeMode>(
+                              segments: const [
+                                ButtonSegment<AppThemeMode>(
+                                  value: AppThemeMode.dark,
+                                  label: Text('Dark'),
+                                ),
+                                ButtonSegment<AppThemeMode>(
+                                  value: AppThemeMode.night,
+                                  label: Text('Night'),
+                                ),
+                              ],
+                              selected: {themeState.mode},
+                              onSelectionChanged: (selection) {
+                                context
+                                    .read<ThemeCubit>()
+                                    .setThemeMode(selection.first);
+                              },
+                            ),
+                          ),
                         ),
                       ],
-                      selected: {themeState.mode},
-                      onSelectionChanged: (selection) {
-                        context
-                            .read<ThemeCubit>()
-                            .setThemeMode(selection.first);
-                      },
                     ),
                   ),
                   const Divider(height: 1),

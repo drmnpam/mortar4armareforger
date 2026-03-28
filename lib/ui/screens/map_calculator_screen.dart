@@ -37,36 +37,69 @@ class MapCalculatorScreen extends StatelessWidget {
             tooltip: 'Toggle distance line',
             onPressed: () => context.read<MapCubit>().toggleDistanceLine(),
           ),
-          IconButton(
-            icon: const Icon(Icons.tune),
-            tooltip: 'Grid calibration',
-            onPressed: () =>
-                _showCalibrationDialog(context, context.read<MapCubit>().state),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_photo_alternate_outlined),
-            tooltip: 'Add custom map',
-            onPressed: () => _showAddCustomMapDialog(context),
-          ),
           PopupMenuButton<String>(
-            onSelected: (value) => context.read<MapCubit>().loadMap(value),
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'Map menu',
+            onSelected: (value) {
+              if (value == '__calibrate__') {
+                _showCalibrationDialog(context, context.read<MapCubit>().state);
+                return;
+              }
+              if (value == '__add_map__') {
+                _showAddCustomMapDialog(context);
+                return;
+              }
+              if (value.startsWith('__map__:')) {
+                context.read<MapCubit>().loadMap(value.substring(8));
+              }
+            },
             itemBuilder: (context) {
               final state = context.read<MapCubit>().state;
-              return state.availableMaps.map((map) {
-                return PopupMenuItem(
-                  value: map,
-                  child: Row(
-                    children: [
-                      if (map == state.selectedMap)
-                        Icon(Icons.check, color: AppTheme.accent, size: 18)
-                      else
-                        const SizedBox(width: 18),
-                      const SizedBox(width: 8),
-                      Text(map.toUpperCase()),
-                    ],
+              final items = <PopupMenuEntry<String>>[
+                const PopupMenuItem(
+                  value: '__calibrate__',
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.tune),
+                    title: Text('Grid calibration'),
                   ),
-                );
-              }).toList();
+                ),
+                const PopupMenuItem(
+                  value: '__add_map__',
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.add_photo_alternate_outlined),
+                    title: Text('Add custom map'),
+                  ),
+                ),
+                const PopupMenuDivider(),
+              ];
+
+              items.addAll(
+                state.availableMaps.map((map) {
+                  return PopupMenuItem(
+                    value: '__map__:$map',
+                    child: Row(
+                      children: [
+                        if (map == state.selectedMap)
+                          Icon(Icons.check, color: AppTheme.accent, size: 18)
+                        else
+                          const SizedBox(width: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            map.toUpperCase(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              );
+              return items;
             },
           ),
         ],
@@ -350,13 +383,13 @@ class MapCalculatorScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: false,
+      isScrollControlled: true,
       builder: (sheetContext) {
         double offsetX = state.calibrationOffsetX;
         double offsetY = state.calibrationOffsetY;
         double scaleX = state.calibrationScaleX;
         double scaleY = state.calibrationScaleY;
-        double stepPercent = 0.10; // 0.10%
+        double stepPercent = 0.10;
 
         return StatefulBuilder(
           builder: (context, setLocalState) {
@@ -374,7 +407,6 @@ class MapCalculatorScreen extends StatelessWidget {
               double dy = 0,
               double dsx = 0,
               double dsy = 0,
-              bool autoApply = true,
             }) {
               final step = stepPercent / 100.0;
               setLocalState(() {
@@ -383,9 +415,7 @@ class MapCalculatorScreen extends StatelessWidget {
                 scaleX += dsx * step;
                 scaleY += dsy * step;
               });
-              if (autoApply) {
-                applyCurrent();
-              }
+              applyCurrent();
             }
 
             Widget nudgeButton({
@@ -400,13 +430,15 @@ class MapCalculatorScreen extends StatelessWidget {
               );
             }
 
+            final maxHeight = MediaQuery.of(sheetContext).size.height * 0.60;
+
             return SafeArea(
               top: false,
               child: Align(
                 alignment: Alignment.bottomCenter,
                 child: ConstrainedBox(
                   constraints:
-                      const BoxConstraints(maxWidth: 720, maxHeight: 380),
+                      BoxConstraints(maxWidth: 760, maxHeight: maxHeight),
                   child: Container(
                     margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     padding: const EdgeInsets.all(12),
@@ -416,7 +448,6 @@ class MapCalculatorScreen extends StatelessWidget {
                       border: Border.all(color: AppTheme.gridLine),
                     ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Row(
                           children: [
@@ -435,142 +466,163 @@ class MapCalculatorScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        Text(
-                          'Map stays visible while adjusting. Changes apply instantly.',
-                          style: TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 12,
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Map stays visible while adjusting. Changes apply instantly.',
+                                    style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Step',
+                                    style: TextStyle(
+                                        color: AppTheme.textSecondary),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children:
+                                      [0.05, 0.10, 0.25, 0.50].map((step) {
+                                    return ChoiceChip(
+                                      label:
+                                          Text('${step.toStringAsFixed(2)}%'),
+                                      selected: stepPercent == step,
+                                      onSelected: (_) => setLocalState(
+                                        () => stepPercent = step,
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.surfaceLight,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border:
+                                        Border.all(color: AppTheme.gridLine),
+                                  ),
+                                  child: Text(
+                                    'OffsetX: ${(offsetX * 100).toStringAsFixed(2)}%  '
+                                    'OffsetY: ${(offsetY * 100).toStringAsFixed(2)}%\n'
+                                    'ScaleX: x${scaleX.toStringAsFixed(4)}  '
+                                    'ScaleY: x${scaleY.toStringAsFixed(4)}',
+                                    style: TextStyle(
+                                      color: AppTheme.textPrimary,
+                                      fontFamily: 'monospace',
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    nudgeButton(
+                                      label: 'Left',
+                                      onPressed: () => nudge(dx: -1),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    nudgeButton(
+                                      label: 'Right',
+                                      onPressed: () => nudge(dx: 1),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    nudgeButton(
+                                      label: 'Up',
+                                      onPressed: () => nudge(dy: -1),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    nudgeButton(
+                                      label: 'Down',
+                                      onPressed: () => nudge(dy: 1),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    nudgeButton(
+                                      label: 'Less',
+                                      onPressed: () => nudge(dsx: -1, dsy: -1),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    nudgeButton(
+                                      label: 'More',
+                                      onPressed: () => nudge(dsx: 1, dsy: 1),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    nudgeButton(
+                                      label: 'Width -',
+                                      onPressed: () => nudge(dsx: -1),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    nudgeButton(
+                                      label: 'Width +',
+                                      onPressed: () => nudge(dsx: 1),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    nudgeButton(
+                                      label: 'Height -',
+                                      onPressed: () => nudge(dsy: -1),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    nudgeButton(
+                                      label: 'Height +',
+                                      onPressed: () => nudge(dsy: 1),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    TextButton(
+                                      onPressed: () {
+                                        cubit.resetCalibration();
+                                        setLocalState(() {
+                                          offsetX = 0;
+                                          offsetY = 0;
+                                          scaleX = 1;
+                                          scaleY = 1;
+                                        });
+                                      },
+                                      child: const Text('RESET'),
+                                    ),
+                                    const Spacer(),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(sheetContext),
+                                      child: const Text('APPLY'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              'Step:',
-                              style: TextStyle(color: AppTheme.textSecondary),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: SegmentedButton<double>(
-                                segments: const [
-                                  ButtonSegment(
-                                      value: 0.05, label: Text('0.05%')),
-                                  ButtonSegment(
-                                      value: 0.10, label: Text('0.10%')),
-                                  ButtonSegment(
-                                      value: 0.25, label: Text('0.25%')),
-                                  ButtonSegment(
-                                      value: 0.50, label: Text('0.50%')),
-                                ],
-                                selected: {stepPercent},
-                                onSelectionChanged: (value) {
-                                  setLocalState(
-                                      () => stepPercent = value.first);
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceLight,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppTheme.gridLine),
-                          ),
-                          child: Text(
-                            'OffsetX: ${(offsetX * 100).toStringAsFixed(2)}%  '
-                            'OffsetY: ${(offsetY * 100).toStringAsFixed(2)}%\n'
-                            'ScaleX: x${scaleX.toStringAsFixed(4)}  '
-                            'ScaleY: x${scaleY.toStringAsFixed(4)}',
-                            style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            nudgeButton(
-                                label: 'Left', onPressed: () => nudge(dx: -1)),
-                            const SizedBox(width: 8),
-                            nudgeButton(
-                                label: 'Right', onPressed: () => nudge(dx: 1)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            nudgeButton(
-                                label: 'Up', onPressed: () => nudge(dy: -1)),
-                            const SizedBox(width: 8),
-                            nudgeButton(
-                                label: 'Down', onPressed: () => nudge(dy: 1)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            nudgeButton(
-                              label: 'Smaller',
-                              onPressed: () => nudge(dsx: -1, dsy: -1),
-                            ),
-                            const SizedBox(width: 8),
-                            nudgeButton(
-                              label: 'Bigger',
-                              onPressed: () => nudge(dsx: 1, dsy: 1),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            nudgeButton(
-                                label: 'Width -',
-                                onPressed: () => nudge(dsx: -1)),
-                            const SizedBox(width: 8),
-                            nudgeButton(
-                                label: 'Width +',
-                                onPressed: () => nudge(dsx: 1)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            nudgeButton(
-                                label: 'Height -',
-                                onPressed: () => nudge(dsy: -1)),
-                            const SizedBox(width: 8),
-                            nudgeButton(
-                                label: 'Height +',
-                                onPressed: () => nudge(dsy: 1)),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                cubit.resetCalibration();
-                                setLocalState(() {
-                                  offsetX = 0;
-                                  offsetY = 0;
-                                  scaleX = 1;
-                                  scaleY = 1;
-                                });
-                              },
-                              child: const Text('RESET'),
-                            ),
-                            const Spacer(),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(sheetContext),
-                              child: const Text('DONE'),
-                            ),
-                          ],
                         ),
                       ],
                     ),
