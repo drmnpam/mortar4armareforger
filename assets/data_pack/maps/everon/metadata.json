@@ -4,7 +4,7 @@
   "description": "Arma Reforger Everon terrain - 10.24km x 10.24km island with varied terrain",
   "terrain_type": "island",
   "biome": "temperate",
-  "world_size_m": 10240,
+  "world_size_m": 12800,
   "grid_size_m": 100,
   "pixels_per_meter": 0.5,
   "origin": [0, 0],

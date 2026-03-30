@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'dart:ui';
+import 'package:flutter/material.dart';
 
 import '../../models/models.dart';
 
@@ -44,9 +44,9 @@ class ImpactVisualizer {
     final semiMinor = baseSemiMinor * rangeFactor;
     
     // Rotation follows azimuth
-    final rotation = azimuth != null ? azimuth * (360 / 6400) : 0;
+    final rotation = azimuth != null ? azimuth * (360 / 6400) : 0.0;
     
-    return (semiMajor: semiMajor, semiMinor: semiMinor, rotation: rotation);
+    return (semiMajor: semiMajor.toDouble(), semiMinor: semiMinor.toDouble(), rotation: rotation.toDouble());
   }
   
   /// Convert ellipse dimensions from meters to pixels
@@ -269,13 +269,4 @@ class ImpactPainter extends CustomPainter {
   
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-/// Helper class for Rect
-class Rect {
-  final Offset center;
-  final double width;
-  final double height;
-  
-  Rect.fromCenter({required this.center, required this.width, required this.height});
 }

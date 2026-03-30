@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../app/theme/app_theme.dart';
 import '../../app/theme/theme_cubit.dart';
 import '../../ballistics/ballistics.dart';
+import '../../models/models.dart';
 import '../../storage/storage.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late StorageService _storage;
   String _preferredMortar = 'M252';
+  CalibrationMode _calibrationMode = CalibrationMode.automatic;
 
   @override
   void initState() {
@@ -40,9 +42,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final selected = mortars.contains(preferred)
         ? preferred
         : (mortars.firstOrNull ?? 'M252');
+    
+    // Load calibration mode
+    final modeJson = _storage.getCalibrationMode();
+    final mode = CalibrationModeExtension.fromJson(modeJson ?? 'automatic');
+    
     if (!mounted) return;
     setState(() {
       _preferredMortar = selected;
+      _calibrationMode = mode;
     });
   }
 
@@ -178,6 +186,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (value) {
                       context.read<ThemeCubit>().setHighContrast(value);
                     },
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Section: Grid Calibration
+            _SectionHeader('GRID CALIBRATION'),
+
+            Card(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.grid_on, color: AppTheme.accent),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text('Calibration Mode'),
+                              SizedBox(height: 4),
+                              Text('100m reference or manual'),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: SegmentedButton<CalibrationMode>(
+                              segments: const [
+                                ButtonSegment<CalibrationMode>(
+                                  value: CalibrationMode.automatic,
+                                  label: Text('Auto'),
+                                ),
+                                ButtonSegment<CalibrationMode>(
+                                  value: CalibrationMode.manual,
+                                  label: Text('Manual'),
+                                ),
+                              ],
+                              selected: {_calibrationMode},
+                              onSelectionChanged: (selection) {
+                                final mode = selection.first;
+                                setState(() => _calibrationMode = mode);
+                                _storage.setCalibrationMode(mode.jsonValue);
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

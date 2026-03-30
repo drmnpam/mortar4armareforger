@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -11,7 +12,9 @@ import '../../ballistics/ballistics.dart';
 import '../../maps/cubit/map_cubit.dart';
 import '../../maps/maps.dart';
 import '../../models/models.dart';
+import '../../weapons/weapon_registry.dart';
 import '../widgets/firing_solution_card.dart';
+import 'map_calculator_screen_calib_widgets.dart';
 
 class MapCalculatorScreen extends StatefulWidget {
   const MapCalculatorScreen({super.key});
@@ -28,9 +31,16 @@ class _MapCalculatorScreenState extends State<MapCalculatorScreen> {
     if (mounted) {
       setState(() => _calibrationMode = true);
     }
-    await _showCalibrationDialog(context, state);
-    if (mounted) {
-      setState(() => _calibrationMode = false);
+    // Start new calibration flow
+    context.read<MapCubit>().startCalibration();
+    
+    // Reset calibration mode when calibration ends
+    final cubit = context.read<MapCubit>();
+    await for (final newState in cubit.stream) {
+      if (!newState.isCalibrating && mounted) {
+        setState(() => _calibrationMode = false);
+        break;
+      }
     }
   }
 
@@ -60,7 +70,7 @@ class _MapCalculatorScreenState extends State<MapCalculatorScreen> {
             tooltip: 'Map menu',
             onSelected: (value) {
               if (value == '__calibrate__') {
-                _openCalibrationDialog(context, context.read<MapCubit>().state);
+                context.read<MapCubit>().startCalibration();
                 return;
               }
               if (value == '__add_map__') {
@@ -124,114 +134,297 @@ class _MapCalculatorScreenState extends State<MapCalculatorScreen> {
       ),
       body: BlocBuilder<MapCubit, MapState>(
         builder: (context, state) {
-          if (state.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          try {
+            if (state.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (state.error != null && state.currentMetadata == null) {
+            if (state.error != null && state.currentMetadata == null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, color: AppTheme.danger, size: 48),
+                    const SizedBox(height: 16),
+                    Text(state.error!, style: TextStyle(color: AppTheme.danger)),
+                  ],
+                ),
+              );
+            }
+
+            if (state.currentMetadata == null) {
+              return const Center(child: Text('No map loaded'));
+            }
+
+            return Stack(
+              children: [
+                _MapCanvas(
+                  metadata: state.currentMetadata!,
+                  mapImagePath: state.mapImagePath,
+                  markers: state.markers,
+                  showGrid: state.showGrid,
+                  showDistanceLine: state.showDistanceLine,
+                  zoomLevel: state.zoomLevel,
+                  panX: state.panX,
+                  panY: state.panY,
+                  hasMortar: state.hasMortar,
+                  hasTarget: state.hasTarget,
+                  selectedWeapon: state.selectedWeapon,
+                  onTapPosition: (position) =>
+                      _handleTap(context, state, position),
+                  onLongPressPosition: (position) {
+                    _handleLongPress(context, state, position);
+                  },
+                  onViewChanged: (zoom, panX, panY) {
+                    context.read<MapCubit>().setView(
+                          zoom: zoom,
+                          panX: panX,
+                          panY: panY,
+                          persist: true,
+                        );
+                  },
+                  calibrationOffsetX: state.calibrationOffsetX,
+                  calibrationOffsetY: state.calibrationOffsetY,
+                  calibrationScaleX: state.calibrationScaleX,
+                  calibrationScaleY: state.calibrationScaleY,
+                  calibrationMode: _calibrationMode,
+                  isCalibrating: state.isCalibrating,
+                  calibrationStep: state.calibrationStep,
+                  calibPointA: state.calibPointA,
+                  calibPointB: state.calibPointB,
+                  isDraggingCalibration: state.isDraggingCalibration,
+                  dragPosition: state.dragPosition,
+                  // Legacy callbacks - keep for compatibility
+                  onCalibrationDragStart: (offset) {},
+                  onCalibrationDragUpdate: (offset) {},
+                  onCalibrationDragEnd: (position) {},
+                  // New callbacks
+                  onCalibrationPlacePoint: (position) {
+                    context.read<MapCubit>().placeCalibrationPoint(position);
+                  },
+                  onCalibrationAdjustStart: (screenPos, zoom) {
+                    context.read<MapCubit>().calibrationAdjustStart(screenPos, zoom);
+                  },
+                  onCalibrationAdjustUpdate: (screenPos, zoom) {
+                    context.read<MapCubit>().calibrationAdjustUpdate(screenPos, zoom);
+                  },
+                  onCalibrationAdjustEnd: () {
+                    context.read<MapCubit>().calibrationAdjustEnd();
+                  },
+                ),
+                if (state.isCalibrating)
+                  _buildCalibrationOverlay(context, state),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _BottomPanel(
+                    hasMortar: state.hasMortar,
+                    hasTarget: state.hasTarget,
+                    error: state.error,
+                    solution: state.solution,
+                    selectedWeapon: state.selectedWeapon,
+                    availableWeapons: state.availableWeapons,
+                    onWeaponSelected: (weapon) =>
+                        context.read<MapCubit>().setWeapon(weapon ?? ''),
+                    onClear: () => context.read<MapCubit>().clearMarkers(),
+                  ),
+                ),
+                Positioned(
+                  right: 16,
+                  top: 16,
+                  child: Column(
+                    children: [
+                      FloatingActionButton.small(
+                        heroTag: 'zoom_in',
+                        onPressed: () => context.read<MapCubit>().setView(
+                              zoom: state.zoomLevel * 1.2,
+                              panX: state.panX,
+                              panY: state.panY,
+                              persist: true,
+                            ),
+                        child: const Icon(Icons.add),
+                      ),
+                      const SizedBox(height: 8),
+                      FloatingActionButton.small(
+                        heroTag: 'zoom_out',
+                        onPressed: () => context.read<MapCubit>().setView(
+                              zoom: state.zoomLevel / 1.2,
+                              panX: state.panX,
+                              panY: state.panY,
+                              persist: true,
+                            ),
+                        child: const Icon(Icons.remove),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          } catch (e, stackTrace) {
+            debugPrint('=== BLOC BUILDER CRASH ===');
+            debugPrint('Error: $e');
+            debugPrint('Stack: $stackTrace');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, color: AppTheme.danger, size: 48),
-                  const SizedBox(height: 16),
-                  Text(state.error!, style: TextStyle(color: AppTheme.danger)),
+                  Icon(Icons.error, color: Colors.red, size: 64),
+                  SizedBox(height: 16),
+                  Text('Screen Error', style: TextStyle(color: Colors.white, fontSize: 20)),
+                  Text('$e', style: TextStyle(color: Colors.red[300])),
                 ],
               ),
             );
           }
-
-          if (state.currentMetadata == null) {
-            return const Center(child: Text('No map loaded'));
-          }
-
-          return Stack(
-            children: [
-              _MapCanvas(
-                metadata: state.currentMetadata!,
-                mapImagePath: state.mapImagePath,
-                markers: state.markers,
-                showGrid: state.showGrid,
-                showDistanceLine: state.showDistanceLine,
-                zoomLevel: state.zoomLevel,
-                panX: state.panX,
-                panY: state.panY,
-                hasMortar: state.hasMortar,
-                hasTarget: state.hasTarget,
-                selectedMortar: state.selectedMortar,
-                onTapPosition: (position) =>
-                    _handleTap(context, state, position),
-                onLongPressPosition: (position) {
-                  context.read<MapCubit>().addMortar(position);
-                },
-                onViewChanged: (zoom, panX, panY) {
-                  context.read<MapCubit>().setView(
-                        zoom: zoom,
-                        panX: panX,
-                        panY: panY,
-                        persist: true,
-                      );
-                },
-                calibrationOffsetX: state.calibrationOffsetX,
-                calibrationOffsetY: state.calibrationOffsetY,
-                calibrationScaleX: state.calibrationScaleX,
-                calibrationScaleY: state.calibrationScaleY,
-                calibrationMode: _calibrationMode,
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: _BottomPanel(
-                  hasMortar: state.hasMortar,
-                  hasTarget: state.hasTarget,
-                  error: state.error,
-                  solution: state.solution,
-                  selectedMortar: state.selectedMortar,
-                  availableMortars: context.read<MapCubit>().availableMortars,
-                  onMortarSelected: (type) =>
-                      context.read<MapCubit>().setMortarType(type),
-                  onClear: () => context.read<MapCubit>().clearMarkers(),
-                ),
-              ),
-              Positioned(
-                right: 16,
-                top: 16,
-                child: Column(
-                  children: [
-                    FloatingActionButton.small(
-                      heroTag: 'zoom_in',
-                      onPressed: () => context.read<MapCubit>().setView(
-                            zoom: state.zoomLevel * 1.2,
-                            panX: state.panX,
-                            panY: state.panY,
-                            persist: true,
-                          ),
-                      child: const Icon(Icons.add),
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'zoom_out',
-                      onPressed: () => context.read<MapCubit>().setView(
-                            zoom: state.zoomLevel / 1.2,
-                            panX: state.panX,
-                            panY: state.panY,
-                            persist: true,
-                          ),
-                      child: const Icon(Icons.remove),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
         },
       ),
     );
   }
 
+  Widget _buildCalibrationOverlay(BuildContext context, MapState state) {
+    final cubit = context.read<MapCubit>();
+    
+    String instruction;
+    String actionButton;
+    if (state.calibrationStep == 0) {
+      instruction = 'TAP map to place START point of 100m line';
+      actionButton = 'CANCEL';
+    } else if (state.calibrationStep == 1) {
+      instruction = 'TAP map to place END point (100m from start)';
+      actionButton = 'RESET';
+    } else if (state.calibrationStep == 2) {
+      instruction = 'LONG PRESS and DRAG to adjust points. Tap APPLY when ready.';
+      actionButton = 'RESET';
+    } else {
+      instruction = 'Calibration complete';
+      actionButton = 'RESET';
+    }
+
+    return Positioned(
+      top: 80,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.surface.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.accent, width: 2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.straighten, color: AppTheme.accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'GRID CALIBRATION',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              instruction,
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (state.calibPointA != null && state.calibPointB != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Distance: ${_calculateDistance(state.calibPointA!, state.calibPointB!).toStringAsFixed(1)}m',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Target: 100m',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      if (state.calibrationStep == 0) {
+                        cubit.cancelCalibration();
+                      } else {
+                        cubit.resetCalibrationNew();
+                      }
+                    },
+                    child: Text(actionButton),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      cubit.cancelCalibration();
+                    },
+                    child: const Text('CLOSE'),
+                  ),
+                ),
+                if (state.calibrationStep == 2) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        cubit.applyCalibration();
+                      },
+                      child: const Text('APPLY'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  double _calculateDistance(Position a, Position b) {
+    final dx = b.x - a.x;
+    final dy = b.y - a.y;
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
   void _handleTap(BuildContext context, MapState state, Position position) {
     final cubit = context.read<MapCubit>();
+
+    // Don't place mortar/target during calibration
+    if (state.isCalibrating) {
+      return;
+    }
 
     if (!state.hasMortar) {
       cubit.addMortar(position);
@@ -239,6 +432,15 @@ class _MapCalculatorScreenState extends State<MapCalculatorScreen> {
     }
 
     cubit.addTarget(position);
+  }
+
+  void _handleLongPress(BuildContext context, MapState state, Position position) {
+    final cubit = context.read<MapCubit>();
+
+    // Move mortar on long press (calibration is now handled by new callbacks)
+    if (state.hasMortar) {
+      cubit.moveMortar(position);
+    }
   }
 
   Future<void> _showAddCustomMapDialog(BuildContext context) async {
@@ -395,306 +597,6 @@ class _MapCalculatorScreenState extends State<MapCalculatorScreen> {
     nameController.dispose();
     worldSizeController.dispose();
   }
-
-  Future<void> _showCalibrationDialog(
-      BuildContext context, MapState state) async {
-    final cubit = context.read<MapCubit>();
-    final initialOffsetX = state.calibrationOffsetX;
-    final initialOffsetY = state.calibrationOffsetY;
-    final initialScaleX = state.calibrationScaleX;
-    final initialScaleY = state.calibrationScaleY;
-    var didSave = false;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        double offsetX = initialOffsetX;
-        double offsetY = initialOffsetY;
-        double scaleX = initialScaleX;
-        double scaleY = initialScaleY;
-        double stepPercent = 0.10;
-        const pivotX = 0.5;
-        const pivotY = 0.5;
-
-        return StatefulBuilder(
-          builder: (context, setLocalState) {
-            void previewCurrent() {
-              cubit.setCalibration(
-                offsetX: offsetX,
-                offsetY: offsetY,
-                scaleX: scaleX,
-                scaleY: scaleY,
-                persist: false,
-              );
-            }
-
-            void nudge({
-              double dx = 0,
-              double dy = 0,
-              double dsx = 0,
-              double dsy = 0,
-            }) {
-              final step = stepPercent / 100.0;
-              setLocalState(() {
-                offsetX += dx * step;
-                offsetY += dy * step;
-                if (dsx != 0) {
-                  final nextScaleX =
-                      (scaleX + dsx * step).clamp(0.5, 1.5).toDouble();
-                  offsetX += (scaleX - nextScaleX) * pivotX;
-                  scaleX = nextScaleX;
-                }
-                if (dsy != 0) {
-                  final nextScaleY =
-                      (scaleY + dsy * step).clamp(0.5, 1.5).toDouble();
-                  offsetY += (scaleY - nextScaleY) * pivotY;
-                  scaleY = nextScaleY;
-                }
-                offsetX = offsetX.clamp(-0.5, 0.5).toDouble();
-                offsetY = offsetY.clamp(-0.5, 0.5).toDouble();
-              });
-              previewCurrent();
-            }
-
-            Widget nudgeButton({
-              required String label,
-              required VoidCallback onPressed,
-            }) {
-              return Expanded(
-                child: OutlinedButton(
-                  onPressed: onPressed,
-                  child: Text(label),
-                ),
-              );
-            }
-
-            final maxHeight = MediaQuery.of(sheetContext).size.height * 0.60;
-
-            return SafeArea(
-              top: false,
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(maxWidth: 760, maxHeight: maxHeight),
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surface.withOpacity(0.96),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppTheme.gridLine),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'GRID CALIBRATION',
-                              style: TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              visualDensity: VisualDensity.compact,
-                              icon: const Icon(Icons.close),
-                              onPressed: () => Navigator.pop(sheetContext),
-                            ),
-                          ],
-                        ),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Map stays visible while adjusting. Changes apply instantly.',
-                                    style: TextStyle(
-                                      color: AppTheme.textSecondary,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Step',
-                                    style: TextStyle(
-                                        color: AppTheme.textSecondary),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children:
-                                      [0.05, 0.10, 0.25, 0.50].map((step) {
-                                    return ChoiceChip(
-                                      label:
-                                          Text('${step.toStringAsFixed(2)}%'),
-                                      selected: stepPercent == step,
-                                      onSelected: (_) => setLocalState(
-                                        () => stepPercent = step,
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                                const SizedBox(height: 10),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.surfaceLight,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border:
-                                        Border.all(color: AppTheme.gridLine),
-                                  ),
-                                  child: Text(
-                                    'OffsetX: ${(offsetX * 100).toStringAsFixed(2)}%  '
-                                    'OffsetY: ${(offsetY * 100).toStringAsFixed(2)}%\n'
-                                    'ScaleX: x${scaleX.toStringAsFixed(4)}  '
-                                    'ScaleY: x${scaleY.toStringAsFixed(4)}\n'
-                                    'Grid size: ${state.currentMetadata?.gridSize.toStringAsFixed(0) ?? '-'}m',
-                                    style: TextStyle(
-                                      color: AppTheme.textPrimary,
-                                      fontFamily: 'monospace',
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    nudgeButton(
-                                      label: 'Left',
-                                      onPressed: () => nudge(dx: -1),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    nudgeButton(
-                                      label: 'Right',
-                                      onPressed: () => nudge(dx: 1),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    nudgeButton(
-                                      label: 'Up',
-                                      onPressed: () => nudge(dy: -1),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    nudgeButton(
-                                      label: 'Down',
-                                      onPressed: () => nudge(dy: 1),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    nudgeButton(
-                                      label: 'Less',
-                                      onPressed: () => nudge(dsx: -1, dsy: -1),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    nudgeButton(
-                                      label: 'More',
-                                      onPressed: () => nudge(dsx: 1, dsy: 1),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    nudgeButton(
-                                      label: 'Width -',
-                                      onPressed: () => nudge(dsx: -1),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    nudgeButton(
-                                      label: 'Width +',
-                                      onPressed: () => nudge(dsx: 1),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    nudgeButton(
-                                      label: 'Height -',
-                                      onPressed: () => nudge(dsy: -1),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    nudgeButton(
-                                      label: 'Height +',
-                                      onPressed: () => nudge(dsy: 1),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    TextButton(
-                                      onPressed: () {
-                                        setLocalState(() {
-                                          offsetX = 0;
-                                          offsetY = 0;
-                                          scaleX = 1;
-                                          scaleY = 1;
-                                        });
-                                        previewCurrent();
-                                      },
-                                      child: const Text('RESET'),
-                                    ),
-                                    const Spacer(),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        didSave = true;
-                                        cubit.setCalibration(
-                                          offsetX: offsetX,
-                                          offsetY: offsetY,
-                                          scaleX: scaleX,
-                                          scaleY: scaleY,
-                                          persist: true,
-                                        );
-                                        Navigator.pop(sheetContext);
-                                      },
-                                      child: const Text('SAVE'),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (!didSave) {
-      cubit.setCalibration(
-        offsetX: initialOffsetX,
-        offsetY: initialOffsetY,
-        scaleX: initialScaleX,
-        scaleY: initialScaleY,
-        persist: false,
-      );
-    }
-  }
 }
 
 class _MapCanvas extends StatefulWidget {
@@ -708,7 +610,7 @@ class _MapCanvas extends StatefulWidget {
   final double panY;
   final bool hasMortar;
   final bool hasTarget;
-  final String selectedMortar;
+  final String selectedWeapon;
   final ValueChanged<Position> onTapPosition;
   final ValueChanged<Position> onLongPressPosition;
   final void Function(double zoom, double panX, double panY) onViewChanged;
@@ -717,6 +619,22 @@ class _MapCanvas extends StatefulWidget {
   final double calibrationScaleX;
   final double calibrationScaleY;
   final bool calibrationMode;
+  // New calibration drag state
+  final bool isCalibrating;
+  final int? calibrationStep;
+  final Position? calibPointA;
+  final Position? calibPointB;
+  final bool isDraggingCalibration;
+  final Offset? dragPosition;
+  // Legacy callbacks (for old drag approach)
+  final Function(Offset) onCalibrationDragStart;
+  final Function(Offset) onCalibrationDragUpdate;
+  final Function(Position) onCalibrationDragEnd;
+  // New callbacks: tap to place (steps 0/1), drag to adjust (step 2)
+  final Function(Position)? onCalibrationPlacePoint;
+  final Function(Offset, double)? onCalibrationAdjustStart;
+  final Function(Offset, double)? onCalibrationAdjustUpdate;
+  final VoidCallback? onCalibrationAdjustEnd;
 
   const _MapCanvas({
     required this.metadata,
@@ -729,7 +647,7 @@ class _MapCanvas extends StatefulWidget {
     required this.panY,
     required this.hasMortar,
     required this.hasTarget,
-    required this.selectedMortar,
+    required this.selectedWeapon,
     required this.onTapPosition,
     required this.onLongPressPosition,
     required this.onViewChanged,
@@ -738,6 +656,19 @@ class _MapCanvas extends StatefulWidget {
     required this.calibrationScaleX,
     required this.calibrationScaleY,
     required this.calibrationMode,
+    required this.isCalibrating,
+    required this.calibrationStep,
+    required this.calibPointA,
+    required this.calibPointB,
+    required this.isDraggingCalibration,
+    required this.dragPosition,
+    required this.onCalibrationDragStart,
+    required this.onCalibrationDragUpdate,
+    required this.onCalibrationDragEnd,
+    this.onCalibrationPlacePoint,
+    this.onCalibrationAdjustStart,
+    this.onCalibrationAdjustUpdate,
+    this.onCalibrationAdjustEnd,
   });
 
   @override
@@ -748,6 +679,7 @@ class _MapCanvasState extends State<_MapCanvas> {
   late final TransformationController _controller;
   final GlobalKey _gestureLayerKey = GlobalKey();
   bool _isUserInteracting = false;
+  bool _isInitialized = false;
   Size _lastViewportSize = Size.zero;
   Size _lastSceneSize = Size.zero;
   Offset _lastBaseOffset = Offset.zero;
@@ -755,7 +687,9 @@ class _MapCanvasState extends State<_MapCanvas> {
   @override
   void initState() {
     super.initState();
+    debugPrint('Map screen init');
     _controller = TransformationController(Matrix4.identity());
+    debugPrint('TransformationController initialized');
   }
 
   @override
@@ -815,108 +749,137 @@ class _MapCanvasState extends State<_MapCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportWidth = constraints.maxWidth;
-        final viewportHeight = constraints.maxHeight;
-        final imageAspect = widget.metadata.imageWidth / widget.metadata.imageHeight;
+    try {
+      // Validate metadata
+      if (widget.metadata.imageWidth <= 0 || widget.metadata.imageHeight <= 0) {
+        return _buildErrorWidget('Invalid image dimensions');
+      }
 
-        var mapWidth = viewportWidth;
-        var mapHeight = mapWidth / imageAspect;
-        if (mapHeight > viewportHeight) {
-          mapHeight = viewportHeight;
-          mapWidth = mapHeight * imageAspect;
-        }
+      // Validate image path
+      if (widget.mapImagePath == null || widget.mapImagePath!.isEmpty) {
+        return _buildErrorWidget('Image path is null');
+      }
+      
+      final imagePath = widget.mapImagePath!;
 
-        final baseOffset = Offset(
-          (viewportWidth - mapWidth) / 2,
-          (viewportHeight - mapHeight) / 2,
-        );
+      // Full layout with InteractiveViewer
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportWidth = constraints.maxWidth;
+          final viewportHeight = constraints.maxHeight;
+          
+          // Calculate map display size based on aspect ratio
+          final imageWidth = widget.metadata.imageWidth.toDouble();
+          final imageHeight = widget.metadata.imageHeight.toDouble();
+          final imageAspect = imageWidth / imageHeight;
 
-        _lastViewportSize = Size(viewportWidth, viewportHeight);
-        _lastSceneSize = Size(mapWidth, mapHeight);
-        _lastBaseOffset = baseOffset;
+          var mapWidth = viewportWidth;
+          var mapHeight = mapWidth / imageAspect;
+          if (mapHeight > viewportHeight) {
+            mapHeight = viewportHeight;
+            mapWidth = mapHeight * imageAspect;
+          }
 
-        if (!_isUserInteracting) {
-          final desired = _stateToMatrix(
-            baseOffset: baseOffset,
-            zoom: widget.zoomLevel,
-            panX: widget.panX,
-            panY: widget.panY,
+          final baseOffset = Offset(
+            (viewportWidth - mapWidth) / 2,
+            (viewportHeight - mapHeight) / 2,
           );
-          if (!_isMatrixClose(_controller.value, desired)) {
-            _controller.value = desired;
+
+          _lastViewportSize = Size(viewportWidth, viewportHeight);
+          _lastSceneSize = Size(mapWidth, mapHeight);
+          _lastBaseOffset = baseOffset;
+
+          if (!_isUserInteracting) {
+            final desired = _stateToMatrix(
+              baseOffset: baseOffset,
+              zoom: widget.zoomLevel,
+              panX: widget.panX,
+              panY: widget.panY,
+            );
+            if (!_isMatrixClose(_controller.value, desired)) {
+              _controller.value = desired;
+            }
           }
-        }
 
-        Position? sceneToWorld(Offset scenePoint) {
-          final localX = scenePoint.dx;
-          final localY = scenePoint.dy;
-          if (localX < 0 ||
-              localY < 0 ||
-              localX > mapWidth ||
-              localY > mapHeight) {
-            return null;
+          // World coordinate conversion functions
+          Position? sceneToWorld(Offset scenePoint) {
+            final localX = scenePoint.dx;
+            final localY = scenePoint.dy;
+            if (localX < 0 || localY < 0 || localX > mapWidth || localY > mapHeight) {
+              return null;
+            }
+
+            final normalizedX = localX / mapWidth;
+            final normalizedY = localY / mapHeight;
+            final correctedX = ((normalizedX - widget.calibrationOffsetX) / widget.calibrationScaleX).clamp(0.0, 1.0);
+            final correctedY = ((normalizedY - widget.calibrationOffsetY) / widget.calibrationScaleY).clamp(0.0, 1.0);
+
+            final worldX = correctedX * widget.metadata.worldSize;
+            final worldY = (1 - correctedY) * widget.metadata.worldHeight;
+            return Position(x: worldX, y: worldY);
           }
 
-          final normalizedX = localX / mapWidth;
-          final normalizedY = localY / mapHeight;
-          final correctedX = ((normalizedX - widget.calibrationOffsetX) /
-                  widget.calibrationScaleX)
-              .clamp(0.0, 1.0);
-          final correctedY = ((normalizedY - widget.calibrationOffsetY) /
-                  widget.calibrationScaleY)
-              .clamp(0.0, 1.0);
-
-          final worldX = correctedX * widget.metadata.worldSize;
-          final worldY = (1 - correctedY) * widget.metadata.worldHeight;
-          return Position(x: worldX, y: worldY);
-        }
-
-        Offset viewportToScene(Offset viewportPoint) {
-          final inverted = Matrix4.copy(_controller.value);
-          final determinant = inverted.invert();
-          if (determinant == 0) {
-            return viewportPoint;
+          Offset viewportToScene(Offset viewportPoint) {
+            final inverted = Matrix4.copy(_controller.value);
+            final determinant = inverted.invert();
+            if (determinant == 0) return viewportPoint;
+            return MatrixUtils.transformPoint(inverted, viewportPoint);
           }
-          return MatrixUtils.transformPoint(inverted, viewportPoint);
-        }
 
-        Position? pointerToWorld(Offset globalPoint) {
-          final context = _gestureLayerKey.currentContext;
-          if (context == null) return null;
-          final renderObject = context.findRenderObject();
-          if (renderObject is! RenderBox) return null;
+          Offset sceneToViewport(Offset scenePoint) {
+            return MatrixUtils.transformPoint(_controller.value, scenePoint);
+          }
 
-          final viewportPoint = renderObject.globalToLocal(globalPoint);
-          final scenePoint = viewportToScene(viewportPoint);
-          return sceneToWorld(scenePoint);
-        }
+          Position? pointerToWorld(Offset globalPoint) {
+            final context = _gestureLayerKey.currentContext;
+            if (context == null) return null;
+            final renderObject = context.findRenderObject();
+            if (renderObject is! RenderBox) return null;
 
-        return Container(
-          color: AppTheme.background,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  key: _gestureLayerKey,
-                  behavior: HitTestBehavior.opaque,
-                  onTapUp: (details) {
-                    final world = pointerToWorld(details.globalPosition);
-                    if (world != null) {
-                      widget.onTapPosition(world);
-                    }
-                  },
-                  onLongPressStart: (details) {
-                    final world = pointerToWorld(details.globalPosition);
-                    if (world != null) {
-                      widget.onLongPressPosition(world);
-                    }
-                  },
+            final viewportPoint = renderObject.globalToLocal(globalPoint);
+            final scenePoint = viewportToScene(viewportPoint);
+            return sceneToWorld(scenePoint);
+          }
+
+          // Calibration points in scene coordinates (raw, without calibration during calibration mode)
+          Offset? pointAOffset;
+          Offset? pointBOffset;
+          if (widget.calibPointA != null) {
+            final normX = widget.calibPointA!.x / widget.metadata.worldSize;
+            final normY = 1 - (widget.calibPointA!.y / widget.metadata.worldHeight);
+            // During calibration, show raw positions; otherwise apply calibration
+            final scaleX = widget.isCalibrating ? 1.0 : widget.calibrationScaleX;
+            final scaleY = widget.isCalibrating ? 1.0 : widget.calibrationScaleY;
+            final offsetX = widget.isCalibrating ? 0.0 : widget.calibrationOffsetX;
+            final offsetY = widget.isCalibrating ? 0.0 : widget.calibrationOffsetY;
+            pointAOffset = Offset(
+              normX * mapWidth * scaleX + offsetX * mapWidth,
+              normY * mapHeight * scaleY + offsetY * mapHeight,
+            );
+          }
+          if (widget.calibPointB != null) {
+            final normX = widget.calibPointB!.x / widget.metadata.worldSize;
+            final normY = 1 - (widget.calibPointB!.y / widget.metadata.worldHeight);
+            // During calibration, show raw positions; otherwise apply calibration
+            final scaleX = widget.isCalibrating ? 1.0 : widget.calibrationScaleX;
+            final scaleY = widget.isCalibrating ? 1.0 : widget.calibrationScaleY;
+            final offsetX = widget.isCalibrating ? 0.0 : widget.calibrationOffsetX;
+            final offsetY = widget.isCalibrating ? 0.0 : widget.calibrationOffsetY;
+            pointBOffset = Offset(
+              normX * mapWidth * scaleX + offsetX * mapWidth,
+              normY * mapHeight * scaleY + offsetY * mapHeight,
+            );
+          }
+
+          return Container(
+            color: AppTheme.background,
+            child: Stack(
+              children: [
+                Positioned.fill(
                   child: InteractiveViewer(
                     transformationController: _controller,
-                    panEnabled: true,
-                    scaleEnabled: true,
+                    panEnabled: !widget.isCalibrating,
+                    scaleEnabled: !widget.isCalibrating,
                     clipBehavior: Clip.hardEdge,
                     constrained: false,
                     minScale: 0.5,
@@ -937,43 +900,171 @@ class _MapCanvasState extends State<_MapCanvas> {
                         matrix[13] - baseOffset.dy,
                       );
                     },
-                    child: SizedBox(
-                      width: mapWidth,
-                      height: mapHeight,
-                      child: Stack(
-                        children: [
-                          Positioned.fill(child: _buildMapImage()),
-                          Positioned.fill(
-                            child: CustomPaint(
-                              painter: _MapOverlayPainter(
-                                metadata: widget.metadata,
-                                markers: widget.markers,
-                                showGrid: widget.showGrid,
-                                showDistanceLine: widget.showDistanceLine,
-                                zoomLevel: widget.zoomLevel,
-                                selectedMortar: widget.selectedMortar,
-                                calibrationOffsetX: widget.calibrationOffsetX,
-                                calibrationOffsetY: widget.calibrationOffsetY,
-                                calibrationScaleX: widget.calibrationScaleX,
-                                calibrationScaleY: widget.calibrationScaleY,
-                                calibrationMode: widget.calibrationMode,
+                    child: GestureDetector(
+                      key: _gestureLayerKey,
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (details) {
+                        final world = sceneToWorld(details.localPosition);
+                        if (world != null) {
+                          if (widget.isCalibrating && widget.calibrationStep != null && widget.calibrationStep! < 2) {
+                            widget.onCalibrationPlacePoint?.call(world);
+                          } else {
+                            widget.onTapPosition(world);
+                          }
+                        }
+                      },
+                      onLongPressStart: (details) {
+                        debugPrint('LONG PRESS START: isCalibrating=${widget.isCalibrating}, step=${widget.calibrationStep}');
+                        if (widget.isCalibrating && widget.calibrationStep == 2) {
+                          debugPrint('LONG PRESS START: Calling calibrationAdjustStart at ${details.localPosition}');
+                          widget.onCalibrationAdjustStart?.call(details.localPosition, widget.zoomLevel);
+                        }
+                      },
+                      onLongPressMoveUpdate: (details) {
+                        if (widget.isCalibrating && widget.calibrationStep == 2) {
+                          widget.onCalibrationAdjustUpdate?.call(details.localPosition, widget.zoomLevel);
+                        }
+                      },
+                      onLongPressEnd: (details) {
+                        if (widget.isCalibrating && widget.calibrationStep == 2) {
+                          widget.onCalibrationAdjustEnd?.call();
+                        }
+                      },
+                      child: SizedBox(
+                        width: mapWidth,
+                        height: mapHeight,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: _buildMapImageOptimized(imagePath),
+                            ),
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _MapOverlayPainter(
+                                  metadata: widget.metadata,
+                                  markers: widget.markers,
+                                  showGrid: widget.showGrid,
+                                  showDistanceLine: widget.showDistanceLine,
+                                  zoomLevel: widget.zoomLevel,
+                                  selectedWeapon: widget.selectedWeapon,
+                                  calibrationOffsetX: widget.calibrationOffsetX,
+                                  calibrationOffsetY: widget.calibrationOffsetY,
+                                  calibrationScaleX: widget.calibrationScaleX,
+                                  calibrationScaleY: widget.calibrationScaleY,
+                                  calibrationMode: widget.calibrationMode,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            if (pointAOffset != null && pointBOffset != null)
+                              CustomPaint(
+                                size: Size(mapWidth, mapHeight),
+                                painter: _CalibrationLinePainter(
+                                  pointA: pointAOffset,
+                                  pointB: pointBOffset,
+                                  zoomLevel: widget.zoomLevel,
+                                ),
+                              ),
+                            if (pointAOffset != null)
+                              Positioned(
+                                left: pointAOffset.dx - 7 / widget.zoomLevel,
+                                top: pointAOffset.dy - 7 / widget.zoomLevel,
+                                child: CalibrationPointMarker(
+                                  label: 'A',
+                                  color: Colors.green,
+                                  size: 14 / widget.zoomLevel,
+                                ),
+                              ),
+                            if (pointBOffset != null)
+                              Positioned(
+                                left: pointBOffset.dx - 7 / widget.zoomLevel,
+                                top: pointBOffset.dy - 7 / widget.zoomLevel,
+                                child: CalibrationPointMarker(
+                                  label: 'B',
+                                  color: Colors.orange,
+                                  size: 14 / widget.zoomLevel,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                top: 12,
-                left: 12,
-                right: 12,
-                child: _TapHint(
-                    hasMortar: widget.hasMortar, hasTarget: widget.hasTarget),
-              ),
-            ],
+                // Magnifier glass in screen coordinates (outside InteractiveViewer)
+                if (widget.isDraggingCalibration && widget.dragPosition != null) ...[
+                  // Convert content coordinates to viewport coordinates for magnifier
+                  Builder(builder: (context) {
+                    final viewportPos = sceneToViewport(widget.dragPosition!);
+                    return Stack(children: [
+                      Positioned(
+                        left: viewportPos.dx - 40,
+                        top: viewportPos.dy - 100,
+                        child: MagnifierGlass(
+                          position: widget.dragPosition!,
+                        ),
+                      ),
+                      Positioned(
+                        left: viewportPos.dx - 20,
+                        top: viewportPos.dy - 20,
+                        child: Crosshair(),
+                      ),
+                    ]);
+                  }),
+                ],
+                // Tap hint at top
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  right: 12,
+                  child: _TapHint(
+                    hasMortar: widget.hasMortar,
+                    hasTarget: widget.hasTarget,
+                    isCalibrating: widget.calibrationMode,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+      
+    } catch (e, stackTrace) {
+      debugPrint('=== MAP BUILD CRASH ===');
+      debugPrint('Error: $e');
+      debugPrint('Stack: $stackTrace');
+      return _buildErrorWidget('$e');
+    }
+  }
+
+  Widget _buildMapImageOptimized(String imagePath) {
+    // Use ResizeImage to limit memory usage
+    final imageProvider = ResizeImage(
+      AssetImage(imagePath),
+      width: 1024,
+      height: 1024,
+      policy: ResizeImagePolicy.fit,
+    );
+    
+    return Image(
+      image: imageProvider,
+      fit: BoxFit.fill,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('IMAGE ERROR: $error');
+        return Container(
+          color: Colors.red[900],
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.broken_image, color: Colors.white, size: 48),
+                SizedBox(height: 8),
+                Text(
+                  'Image not found',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -981,17 +1072,58 @@ class _MapCanvasState extends State<_MapCanvas> {
   }
 
   Widget _buildMapImage() {
+    debugPrint('_buildMapImage: mapImagePath = ${widget.mapImagePath}');
     if (widget.mapImagePath == null) {
+      debugPrint('_buildMapImage: path is null, returning empty container');
       return Container(color: AppTheme.surfaceLight);
     }
 
     final path = widget.mapImagePath!;
+    debugPrint('_buildMapImage: loading image from path: $path');
     if (path.startsWith('assets/')) {
+      debugPrint('_buildMapImage: using Image.asset');
       return Image.asset(
         path,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
-        errorBuilder: (context, _, __) => _mapUnavailable(),
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('_buildMapImage: Image.asset error: $error');
+          return _mapUnavailable();
+        },
+      );
+    }
+
+    // On web, Image.file is not supported - use network or memory approach
+    if (kIsWeb) {
+      // For web, try to use the path as a network URL or show unavailable
+      if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
+        return Image.network(
+          path,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (context, _, __) => _mapUnavailable(),
+        );
+      }
+      // For local files on web, show unavailable message
+      return Container(
+        color: AppTheme.surfaceLight,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.map_outlined, color: AppTheme.textMuted, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Local files not supported on web',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Use asset-based maps instead',
+              style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+            ),
+          ],
+        ),
       );
     }
 
@@ -1003,16 +1135,124 @@ class _MapCanvasState extends State<_MapCanvas> {
     );
   }
 
+  Widget _buildErrorWidget(String message) {
+    return Container(
+      color: AppTheme.background,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, color: AppTheme.danger, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            'Map failed to load',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Using default scale',
+            style: TextStyle(
+              color: AppTheme.accent,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _mapUnavailable() {
     return Container(
       color: AppTheme.surfaceLight,
       alignment: Alignment.center,
-      child: Text(
-        'Map image unavailable',
-        style: TextStyle(color: AppTheme.textSecondary),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'Map image unavailable',
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Path: ${widget.mapImagePath ?? 'null'}',
+            style: TextStyle(color: AppTheme.textMuted, fontSize: 10),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
+}
+
+// Painter for calibration line between points A and B
+class _CalibrationLinePainter extends CustomPainter {
+  final Offset pointA;
+  final Offset pointB;
+  final double zoomLevel;
+
+  _CalibrationLinePainter({
+    required this.pointA,
+    required this.pointB,
+    this.zoomLevel = 1.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    // Draw dashed line between points
+    final path = Path()
+      ..moveTo(pointA.dx, pointA.dy)
+      ..lineTo(pointB.dx, pointB.dy);
+
+    final metric = path.computeMetrics().first;
+    const dashLength = 10.0;
+    const gapLength = 5.0;
+    var distance = 0.0;
+
+    while (distance < metric.length) {
+      final next = math.min(distance + dashLength, metric.length);
+      canvas.drawPath(metric.extractPath(distance, next), paint);
+      distance += dashLength + gapLength;
+    }
+
+    // Draw distance label at midpoint
+    final mid = Offset((pointA.dx + pointB.dx) / 2, (pointA.dy + pointB.dy) / 2);
+    final textSpan = TextSpan(
+      text: '100m reference',
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 10 / zoomLevel,
+        fontWeight: FontWeight.bold,
+        backgroundColor: Colors.black.withOpacity(0.7),
+      ),
+    );
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(mid.dx - textPainter.width / 2, mid.dy - textPainter.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class _MapOverlayPainter extends CustomPainter {
@@ -1021,7 +1261,7 @@ class _MapOverlayPainter extends CustomPainter {
   final bool showGrid;
   final bool showDistanceLine;
   final double zoomLevel;
-  final String selectedMortar;
+  final String selectedWeapon;
   final double calibrationOffsetX;
   final double calibrationOffsetY;
   final double calibrationScaleX;
@@ -1034,7 +1274,7 @@ class _MapOverlayPainter extends CustomPainter {
     required this.showGrid,
     required this.showDistanceLine,
     required this.zoomLevel,
-    required this.selectedMortar,
+    required this.selectedWeapon,
     required this.calibrationOffsetX,
     required this.calibrationOffsetY,
     required this.calibrationScaleX,
@@ -1044,6 +1284,25 @@ class _MapOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Null safety checks - do not draw if metadata is missing or invalid
+    if (size.width <= 0 || size.height <= 0) {
+      debugPrint('GridPainter: Invalid size $size');
+      return;
+    }
+    final metersPerPixel = metadata.worldSize / metadata.imageWidth;
+    if (metersPerPixel <= 0 || metersPerPixel.isNaN || metersPerPixel.isInfinite) {
+      debugPrint('GridPainter: Invalid metersPerPixel $metersPerPixel');
+      return;
+    }
+    if (metadata.imageWidth <= 0 || metadata.imageHeight <= 0) {
+      debugPrint('GridPainter: Invalid metadata image dimensions ${metadata.imageWidth} x ${metadata.imageHeight}');
+      return;
+    }
+    if (metadata.worldSize <= 0 || metadata.worldHeight <= 0) {
+      debugPrint('GridPainter: Invalid world size ${metadata.worldSize} x ${metadata.worldHeight}');
+      return;
+    }
+
     if (showGrid) {
       _drawGrid(canvas, size);
     }
@@ -1066,7 +1325,7 @@ class _MapOverlayPainter extends CustomPainter {
   }
 
   void _drawMaxRangeRadius(Canvas canvas, Size size, MapMarker mortar) {
-    final tables = BallisticTables.getTables(selectedMortar);
+    final tables = BallisticTables.getTables(selectedWeapon);
     if (tables.isEmpty) {
       return;
     }
@@ -1075,12 +1334,20 @@ class _MapOverlayPainter extends CustomPainter {
       return;
     }
 
+    // Calculate metersPerPixel (worldWidth / imageWidth)
+    var metersPerPixel = metadata.worldSize / metadata.imageWidth;
+    // Safety check: use default if calculation results in 0 or invalid
+    if (metersPerPixel <= 0) {
+      const defaultMetersPerPixel = 3.125; // 12800 / 4096
+      metersPerPixel = defaultMetersPerPixel;
+    }
+
     final center = _worldToPixel(mortar.position, size);
-    final radiusImagePixels = maxRange / metadata.metersPerPixel;
+    final radiusPixels = maxRange / metersPerPixel;
     final displayScaleX = size.width / metadata.imageWidth;
     final displayScaleY = size.height / metadata.imageHeight;
-    final radiusX = radiusImagePixels * displayScaleX * calibrationScaleX;
-    final radiusY = radiusImagePixels * displayScaleY * calibrationScaleY;
+    final radiusX = radiusPixels * displayScaleX * calibrationScaleX;
+    final radiusY = radiusPixels * displayScaleY * calibrationScaleY;
     if (radiusX <= 1 || radiusY <= 1) {
       return;
     }
@@ -1093,10 +1360,11 @@ class _MapOverlayPainter extends CustomPainter {
 
     final oval = Path()
       ..addOval(
-        Rect.fromCenter(
-          center: center,
-          width: radiusX * 2,
-          height: radiusY * 2,
+        Rect.fromLTRB(
+          center.dx - radiusX,
+          center.dy - radiusY,
+          center.dx + radiusX,
+          center.dy + radiusY,
         ),
       );
     for (final metric in oval.computeMetrics()) {
@@ -1112,13 +1380,26 @@ class _MapOverlayPainter extends CustomPainter {
   }
 
   void _drawGrid(Canvas canvas, Size size) {
+    // Additional null safety checks
+    if (metadata.worldSize <= 0 || metadata.worldHeight <= 0) {
+      return;
+    }
+    if (metadata.gridSize <= 0) {
+      return;
+    }
+
     final safeZoom = zoomLevel.clamp(0.25, 8.0);
-    final gridColor = calibrationMode
-        ? const Color(0xFF3BFF5B)
-        : AppTheme.gridLine.withValues(alpha: 0.35);
     final paint = Paint()
-      ..color = gridColor
-      ..strokeWidth = (calibrationMode ? 1.6 : 0.6) / math.sqrt(safeZoom);
+      ..color = AppTheme.gridLine.withValues(alpha: 0.35)
+      ..strokeWidth = 0.6 / math.sqrt(safeZoom);
+
+    // Calculate metersPerPixel for proper grid spacing
+    var metersPerPixel = metadata.worldSize / metadata.imageWidth;
+    // Safety check: use default if calculation results in 0 or invalid
+    if (metersPerPixel <= 0) {
+      const defaultMetersPerPixel = 3.125; // 12800 / 4096
+      metersPerPixel = defaultMetersPerPixel;
+    }
 
     for (double worldX = 0;
         worldX <= metadata.worldSize;
@@ -1246,7 +1527,7 @@ class _MapOverlayPainter extends CustomPainter {
         oldDelegate.showGrid != showGrid ||
         oldDelegate.showDistanceLine != showDistanceLine ||
         oldDelegate.zoomLevel != zoomLevel ||
-        oldDelegate.selectedMortar != selectedMortar ||
+        oldDelegate.selectedWeapon != selectedWeapon ||
         oldDelegate.calibrationOffsetX != calibrationOffsetX ||
         oldDelegate.calibrationOffsetY != calibrationOffsetY ||
         oldDelegate.calibrationScaleX != calibrationScaleX ||
@@ -1258,19 +1539,23 @@ class _MapOverlayPainter extends CustomPainter {
 class _TapHint extends StatelessWidget {
   final bool hasMortar;
   final bool hasTarget;
+  final bool isCalibrating;
 
   const _TapHint({
     required this.hasMortar,
     required this.hasTarget,
+    this.isCalibrating = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final message = !hasMortar
-        ? 'Tap map to place mortar'
-        : !hasTarget
-            ? 'Tap map to place target'
-            : 'Tap map to move target. Long press to move mortar';
+    final message = isCalibrating
+        ? 'Calibration mode - Tap map to set reference points'
+        : !hasMortar
+            ? 'Tap map to place mortar'
+            : !hasTarget
+                ? 'Tap map to place target'
+                : 'Tap map to move target. Long press to move mortar';
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1281,7 +1566,11 @@ class _TapHint extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.touch_app, size: 18, color: AppTheme.accent),
+            Icon(
+              isCalibrating ? Icons.straighten : Icons.touch_app,
+              size: 18,
+              color: isCalibrating ? AppTheme.accent : AppTheme.accent,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1304,9 +1593,9 @@ class _BottomPanel extends StatelessWidget {
   final bool hasTarget;
   final String? error;
   final FiringSolution? solution;
-  final String selectedMortar;
-  final List<String> availableMortars;
-  final ValueChanged<String> onMortarSelected;
+  final String selectedWeapon;
+  final List<String> availableWeapons;
+  final ValueChanged<String?> onWeaponSelected;
   final VoidCallback onClear;
 
   const _BottomPanel({
@@ -1314,9 +1603,9 @@ class _BottomPanel extends StatelessWidget {
     required this.hasTarget,
     this.error,
     this.solution,
-    required this.selectedMortar,
-    required this.availableMortars,
-    required this.onMortarSelected,
+    required this.selectedWeapon,
+    required this.availableWeapons,
+    required this.onWeaponSelected,
     required this.onClear,
   });
 
@@ -1355,22 +1644,20 @@ class _BottomPanel extends StatelessWidget {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: selectedMortar,
+                        value: selectedWeapon.isEmpty ? null : selectedWeapon,
                         dropdownColor: AppTheme.surfaceLight,
                         style: TextStyle(
                             color: AppTheme.textPrimary, fontSize: 14),
                         icon:
                             Icon(Icons.arrow_drop_down, color: AppTheme.accent),
-                        items: availableMortars.map((mortar) {
-                          return DropdownMenuItem(
-                            value: mortar,
-                            child: Text(mortar),
+                        items: availableWeapons.map((weapon) {
+                          return DropdownMenuItem<String>(
+                            value: weapon,
+                            child: Text(weapon),
                           );
                         }).toList(),
                         onChanged: (value) {
-                          if (value != null) {
-                            onMortarSelected(value);
-                          }
+                          onWeaponSelected(value);
                         },
                       ),
                     ),

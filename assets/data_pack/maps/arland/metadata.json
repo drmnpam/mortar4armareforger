@@ -4,7 +4,7 @@
   "description": "Arma Reforger Arland terrain - 5.12km x 5.12km rural landscape",
   "terrain_type": "mainland",
   "biome": "temperate",
-  "world_size_m": 5120,
+  "world_size_m": 10240,
   "grid_size_m": 100,
   "pixels_per_meter": 0.5,
   "origin": [0, 0],

@@ -80,16 +80,15 @@ class MapLoader {
   }
 
   /// Load map image asset path
+  /// All maps now use JPEG format to prevent OOM crashes
   static String getMapImagePath(String mapName) {
     final customPath = _customMapImagePaths[mapName];
     if (customPath != null && customPath.isNotEmpty) {
       return customPath;
     }
-    final metadata = _cachedMetadata[mapName];
-    if (metadata != null) {
-      return 'assets/maps/$mapName/${metadata.image}';
-    }
-    return 'assets/maps/$mapName/map.png';
+    
+    // All built-in maps now use JPEG (smaller file size, no OOM)
+    return 'assets/maps/$mapName/map.jpg';
   }
 
   /// Add a custom map from file system (for workshop maps)
@@ -106,7 +105,7 @@ class MapLoader {
 
       final mapName = metadata.name;
       _cachedMetadata[mapName] = metadata;
-      _customMapImagePaths[mapName] = '$path/${metadata.image}';
+      _customMapImagePaths[mapName] = '$path/map.png';
 
       if (!_availableMaps.contains(mapName)) {
         _availableMaps.add(mapName);
@@ -192,14 +191,19 @@ class MapLoader {
 
   /// Create default metadata for a map
   static MapMetadata createDefaultMetadata(String mapName, double worldSize) {
+    final pixelsPerMeter = 0.5;
+    final imageSize = (worldSize * pixelsPerMeter).round();
     return MapMetadata(
       name: mapName,
-      image: 'map.png',
+      description: 'Auto-generated metadata for $mapName',
       worldSize: worldSize,
       gridSize: 100,
-      pixelsPerMeter: 0.5,
-      imageWidth: 4096,
-      imageHeight: 4096,
+      pixelsPerMeter: pixelsPerMeter,
+      origin: [0, 0],
+      heightmapPath: null,
+      mapImage: 'map.png',
+      imageWidth: imageSize,
+      imageHeight: imageSize,
     );
   }
 
@@ -220,8 +224,7 @@ class MapLoader {
   }
 
   /// Get map dimensions in pixels
-  static ({double width, double height}) getMapDimensions(
-      MapMetadata metadata) {
+  static ({int width, int height}) getMapDimensions(MapMetadata metadata) {
     return (width: metadata.imageWidth, height: metadata.imageHeight);
   }
 

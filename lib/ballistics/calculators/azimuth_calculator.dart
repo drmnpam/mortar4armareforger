@@ -69,8 +69,8 @@ class AzimuthCalculator {
     return mils / radiansToMils;
   }
   
-  /// Convert radians to mils
-  static double radiansToMils(double radians) {
+  /// Convert radians to mils (method version)
+  static double convertRadiansToMils(double radians) {
     return radians * radiansToMils;
   }
   

@@ -35,9 +35,9 @@ class MapWorkshopImporter {
       );
       
       // Check for map image
-      final mapImageFile = File('$path/${metadata.image}');
+      final mapImageFile = File('$path/${metadata.mapImage}');
       if (!await mapImageFile.exists()) {
-        return MapImportResult.error('Map image not found: ${metadata.image}');
+        return MapImportResult.error('Map image not found: ${metadata.mapImage}');
       }
       
       // Check for optional heightmap
@@ -56,7 +56,7 @@ class MapWorkshopImporter {
       await mapsDir.create(recursive: true);
       
       // Copy files
-      await mapImageFile.copy('${mapsDir.path}/${metadata.image}');
+      await mapImageFile.copy('${mapsDir.path}/${metadata.mapImage}');
       await metadataFile.copy('${mapsDir.path}/metadata.json');
       
       return MapImportResult.success(
@@ -118,7 +118,7 @@ class MapWorkshopImporter {
     
     final metadata = MapMetadataExtended(
       name: name,
-      image: file.uri.pathSegments.last,
+      mapImage: file.uri.pathSegments.last,
       worldSize: 10240, // Default assumption
       gridSize: 100,
       pixelsPerMeter: 1.0,
@@ -160,7 +160,7 @@ class MapWorkshopImporter {
       final json = jsonDecode(content) as Map<String, dynamic>;
       final metadata = MapMetadataExtended.fromJson(json);
       
-      final mapFile = File('$path/${metadata.image}');
+      final mapFile = File('$path/${metadata.mapImage}');
       return await mapFile.exists();
     } catch (e) {
       return false;
@@ -223,7 +223,17 @@ class MapImportResult {
 }
 
 /// Extended map metadata for workshop imports
-class MapMetadataExtended extends MapMetadata {
+class MapMetadataExtended {
+  final String name;
+  final String mapImage;
+  final double worldSize;
+  final double gridSize;
+  final double pixelsPerMeter;
+  final String? description;
+  final double? minX;
+  final double? minY;
+  final double? maxX;
+  final double? maxY;
   final String? heightmap;
   final String? author;
   final String? version;
@@ -233,16 +243,16 @@ class MapMetadataExtended extends MapMetadata {
   final Map<String, dynamic>? customData;
   
   MapMetadataExtended({
-    required super.name,
-    required super.image,
-    required super.worldSize,
-    required super.gridSize,
-    required super.pixelsPerMeter,
-    super.description,
-    super.minX,
-    super.minY,
-    super.maxX,
-    super.maxY,
+    required this.name,
+    required this.mapImage,
+    required this.worldSize,
+    required this.gridSize,
+    required this.pixelsPerMeter,
+    this.description,
+    this.minX,
+    this.minY,
+    this.maxX,
+    this.maxY,
     this.heightmap,
     this.author,
     this.version,
@@ -255,11 +265,11 @@ class MapMetadataExtended extends MapMetadata {
   factory MapMetadataExtended.fromJson(Map<String, dynamic> json) {
     return MapMetadataExtended(
       name: json['name'] as String,
-      image: json['image'] as String,
+      mapImage: json['image'] as String,
       worldSize: (json['worldSize'] as num).toDouble(),
       gridSize: (json['gridSize'] as num).toDouble(),
       pixelsPerMeter: (json['pixelsPerMeter'] as num).toDouble(),
-      description: json['description'] as String?,
+      description: json['description'] as String? ?? '',
       minX: (json['minX'] as num?)?.toDouble(),
       minY: (json['minY'] as num?)?.toDouble(),
       maxX: (json['maxX'] as num?)?.toDouble(),
@@ -274,9 +284,17 @@ class MapMetadataExtended extends MapMetadata {
     );
   }
   
-  @override
   Map<String, dynamic> toJson() => {
-    ...super.toJson(),
+    'name': name,
+    'image': mapImage,
+    'worldSize': worldSize,
+    'gridSize': gridSize,
+    'pixelsPerMeter': pixelsPerMeter,
+    'description': description,
+    'minX': minX,
+    'minY': minY,
+    'maxX': maxX,
+    'maxY': maxY,
     'heightmap': heightmap,
     'author': author,
     'version': version,

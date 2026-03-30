@@ -9,6 +9,9 @@ class DistanceCalculator {
     final dy = to.y - from.y;
     return sqrt(dx * dx + dy * dy);
   }
+
+  /// Alias for calculateDistance
+  static double calculate2D(Position from, Position to) => calculateDistance(from, to);
   
   /// Calculate 3D distance including altitude
   static double calculateDistance3D(Position from, Position to) {

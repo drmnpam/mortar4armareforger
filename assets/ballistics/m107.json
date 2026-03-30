@@ -1,0 +1,31 @@
+{
+  "weapon": "M107 HE",
+  "type": "artillery_table",
+  "description": "155mm M107 HE Projectile",
+  "charges": {
+    "1": [
+      { "range": 950, "elevation": 1245, "tof": 24.4 },
+      { "range": 1000, "elevation": 1221, "tof": 24.2 },
+      { "range": 1100, "elevation": 1175, "tof": 23.8 },
+      { "range": 1200, "elevation": 1130, "tof": 23.5 },
+      { "range": 1300, "elevation": 1086, "tof": 23.2 },
+      { "range": 1400, "elevation": 1043, "tof": 22.9 },
+      { "range": 1500, "elevation": 1000, "tof": 22.6 },
+      { "range": 1600, "elevation": 958, "tof": 22.3 },
+      { "range": 1700, "elevation": 917, "tof": 22.0 },
+      { "range": 1800, "elevation": 876, "tof": 21.8 },
+      { "range": 1900, "elevation": 836, "tof": 21.5 },
+      { "range": 2000, "elevation": 796, "tof": 21.3 },
+      { "range": 2100, "elevation": 756, "tof": 21.0 },
+      { "range": 2200, "elevation": 717, "tof": 20.8 },
+      { "range": 2300, "elevation": 678, "tof": 20.6 },
+      { "range": 2400, "elevation": 639, "tof": 20.4 },
+      { "range": 2500, "elevation": 600, "tof": 20.2 },
+      { "range": 2600, "elevation": 561, "tof": 20.0 },
+      { "range": 2700, "elevation": 523, "tof": 19.8 },
+      { "range": 2800, "elevation": 485, "tof": 19.6 },
+      { "range": 2900, "elevation": 447, "tof": 19.4 },
+      { "range": 3000, "elevation": 409, "tof": 19.2 }
+    ]
+  }
+}

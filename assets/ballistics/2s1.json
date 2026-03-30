@@ -1,0 +1,52 @@
+{
+  "weapon": "2S1 Gvozdika",
+  "type": "artillery_table",
+  "description": "122mm 2S1 Gvozdika - 30F56 HE Projectile",
+  "charges": {
+    "1": [
+      { "range": 1000, "elevation": 1400, "tof": 22.5 },
+      { "range": 1200, "elevation": 1320, "tof": 22.0 },
+      { "range": 1400, "elevation": 1240, "tof": 21.5 },
+      { "range": 1600, "elevation": 1160, "tof": 21.0 },
+      { "range": 1800, "elevation": 1080, "tof": 20.5 },
+      { "range": 2000, "elevation": 1000, "tof": 20.0 },
+      { "range": 2200, "elevation": 920, "tof": 19.5 },
+      { "range": 2400, "elevation": 840, "tof": 19.0 },
+      { "range": 2600, "elevation": 760, "tof": 18.5 },
+      { "range": 2800, "elevation": 680, "tof": 18.0 },
+      { "range": 3000, "elevation": 600, "tof": 17.5 },
+      { "range": 3200, "elevation": 520, "tof": 17.0 },
+      { "range": 3400, "elevation": 440, "tof": 16.5 },
+      { "range": 3600, "elevation": 360, "tof": 16.0 },
+      { "range": 3800, "elevation": 280, "tof": 15.5 },
+      { "range": 4000, "elevation": 200, "tof": 15.0 }
+    ],
+    "2": [
+      { "range": 1500, "elevation": 1420, "tof": 26.0 },
+      { "range": 2000, "elevation": 1280, "tof": 25.0 },
+      { "range": 2500, "elevation": 1140, "tof": 24.0 },
+      { "range": 3000, "elevation": 1000, "tof": 23.0 },
+      { "range": 3500, "elevation": 860, "tof": 22.0 },
+      { "range": 4000, "elevation": 720, "tof": 21.0 },
+      { "range": 4500, "elevation": 580, "tof": 20.0 },
+      { "range": 5000, "elevation": 440, "tof": 19.0 },
+      { "range": 5500, "elevation": 300, "tof": 18.0 },
+      { "range": 6000, "elevation": 160, "tof": 17.0 },
+      { "range": 6500, "elevation": 100, "tof": 16.5 },
+      { "range": 7000, "elevation": 80, "tof": 16.0 }
+    ],
+    "3": [
+      { "range": 2500, "elevation": 1450, "tof": 35.0 },
+      { "range": 3000, "elevation": 1340, "tof": 33.5 },
+      { "range": 4000, "elevation": 1120, "tof": 31.0 },
+      { "range": 5000, "elevation": 900, "tof": 28.5 },
+      { "range": 6000, "elevation": 680, "tof": 26.0 },
+      { "range": 7000, "elevation": 460, "tof": 23.5 },
+      { "range": 8000, "elevation": 240, "tof": 21.0 },
+      { "range": 9000, "elevation": 120, "tof": 19.0 },
+      { "range": 10000, "elevation": 100, "tof": 18.0 },
+      { "range": 11000, "elevation": 80, "tof": 17.0 },
+      { "range": 12000, "elevation": 70, "tof": 16.5 }
+    ]
+  }
+}

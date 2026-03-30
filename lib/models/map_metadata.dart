@@ -1,135 +1,116 @@
-import 'package:equatable/equatable.dart';
-import 'position.dart';
+﻿import 'package:equatable/equatable.dart';
 
-/// Map metadata for loading and displaying maps
+/// Represents map metadata
 class MapMetadata extends Equatable {
-  /// Map display name
   final String name;
-  
-  /// Image filename
-  final String image;
-  
-  /// World size in meters (e.g., 10240 for 10km x 10km)
+  final String description;
   final double worldSize;
-  
-  /// Grid cell size in meters
   final double gridSize;
-  
-  /// Pixels per meter ratio
   final double pixelsPerMeter;
+  final List<double> origin;
+  final String? heightmapPath;
+  final String? mapImage;
 
-  /// Source image width in pixels.
-  final double imageWidth;
-
-  /// Source image height in pixels.
-  final double imageHeight;
-  
-  /// Optional description
-  final String? description;
-  
-  /// Optional minimum/maximum coordinates
-  final double? minX;
-  final double? minY;
-  final double? maxX;
-  final double? maxY;
+  /// Actual image dimensions stored from JSON (or derived from worldSize * pixelsPerMeter).
+  final int _imageWidth;
+  final int _imageHeight;
 
   const MapMetadata({
     required this.name,
-    required this.image,
+    required this.description,
     required this.worldSize,
     required this.gridSize,
     required this.pixelsPerMeter,
-    required this.imageWidth,
-    required this.imageHeight,
-    this.description,
-    this.minX,
-    this.minY,
-    this.maxX,
-    this.maxY,
-  });
+    required this.origin,
+    this.heightmapPath,
+    this.mapImage,
+    int? imageWidth,
+    int? imageHeight,
+  })  : _imageWidth = imageWidth ?? 0,
+        _imageHeight = imageHeight ?? 0;
 
-  /// Convert world coordinates to pixel coordinates
-  MapOffset worldToPixel(double x, double y, double mapPixelWidth, double mapPixelHeight) {
-    final pixelX = (x / worldSize) * mapPixelWidth;
-    final pixelY = (1 - (y / worldHeight)) * mapPixelHeight;
-    return MapOffset(pixelX, pixelY);
-  }
-
-  /// Convert pixel coordinates to world coordinates
-  Position pixelToWorld(
-      double pixelX, double pixelY, double mapPixelWidth, double mapPixelHeight) {
-    final worldX = (pixelX / mapPixelWidth) * worldSize;
-    final worldY = (1 - (pixelY / mapPixelHeight)) * worldHeight;
-    return Position(x: worldX, y: worldY);
-  }
-
-  /// Pixel-to-meter ratio based on map width.
-  double get metersPerPixel => worldSize / imageWidth;
-
-  /// World height in meters derived from image aspect ratio.
-  double get worldHeight => imageHeight * metersPerPixel;
-
+  /// Create from JSON
   factory MapMetadata.fromJson(Map<String, dynamic> json) {
     final worldSize = (json['worldSize'] as num).toDouble();
-    final legacyPixelsPerMeter =
-        (json['pixelsPerMeter'] as num?)?.toDouble() ?? 1.0;
+    final pixelsPerMeter = (json['pixelsPerMeter'] as num).toDouble();
+    final derived = (worldSize * pixelsPerMeter).round();
+
     final imageWidth =
-        (json['imageWidth'] as num?)?.toDouble() ?? (worldSize * legacyPixelsPerMeter);
+        (json['imageWidth'] as num?)?.round() ?? derived;
     final imageHeight =
-        (json['imageHeight'] as num?)?.toDouble() ?? imageWidth;
+        (json['imageHeight'] as num?)?.round() ?? derived;
 
     return MapMetadata(
       name: json['name'] as String,
-      image: json['image'] as String,
+      description: json['description'] as String? ?? '',
       worldSize: worldSize,
       gridSize: (json['gridSize'] as num).toDouble(),
-      pixelsPerMeter: legacyPixelsPerMeter,
+      pixelsPerMeter: pixelsPerMeter,
+      origin: (json['origin'] as List<dynamic>?)
+              ?.map((e) => (e as num).toDouble())
+              .toList() ??
+          [0.0, 0.0],
+      heightmapPath: json['heightmap'] as String?,
+      mapImage: json['image'] as String? ?? 'map.png',
       imageWidth: imageWidth,
       imageHeight: imageHeight,
-      description: json['description'] as String?,
-      minX: (json['minX'] as num?)?.toDouble(),
-      minY: (json['minY'] as num?)?.toDouble(),
-      maxX: (json['maxX'] as num?)?.toDouble(),
-      maxY: (json['maxY'] as num?)?.toDouble(),
     );
   }
 
+  /// Convert to JSON
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'image': image,
-    'worldSize': worldSize,
-    'gridSize': gridSize,
-    'pixelsPerMeter': pixelsPerMeter,
-    'imageWidth': imageWidth,
-    'imageHeight': imageHeight,
-    if (description != null) 'description': description,
-    if (minX != null) 'minX': minX,
-    if (minY != null) 'minY': minY,
-    if (maxX != null) 'maxX': maxX,
-    if (maxY != null) 'maxY': maxY,
-  };
+        'name': name,
+        'description': description,
+        'worldSize': worldSize,
+        'gridSize': gridSize,
+        'pixelsPerMeter': pixelsPerMeter,
+        'origin': origin,
+        'heightmap': heightmapPath,
+        'image': mapImage,
+        'imageWidth': imageWidth,
+        'imageHeight': imageHeight,
+      };
+
+  /// Image width in pixels (from JSON or derived from worldSize * pixelsPerMeter).
+  int get imageWidth =>
+      _imageWidth > 0 ? _imageWidth : (worldSize * pixelsPerMeter).round();
+
+  /// Image height in pixels (from JSON or derived from worldSize * pixelsPerMeter).
+  int get imageHeight =>
+      _imageHeight > 0 ? _imageHeight : (worldSize * pixelsPerMeter).round();
+
+  /// World height derived from aspect ratio so non-square maps work correctly.
+  double get worldHeight =>
+      imageHeight > 0 && imageWidth > 0
+          ? worldSize * (imageHeight / imageWidth)
+          : worldSize;
+
+  /// Meters per pixel (inverse of pixelsPerMeter)
+  double get metersPerPixel => 1.0 / pixelsPerMeter;
+
+  /// Convert world coordinates to pixel coordinates
+  ({double x, double y}) worldToPixel(
+      double worldX, double worldY, int imageWidth, int imageHeight) {
+    final pixelX = (worldX / worldSize) * imageWidth;
+    final pixelY = imageHeight - (worldY / worldHeight) * imageHeight;
+    return (x: pixelX, y: pixelY);
+  }
+
+  /// Convert pixel coordinates to world coordinates
+  ({double x, double y}) pixelToWorld(
+      double pixelX, double pixelY, int imageWidth, int imageHeight) {
+    final worldX = (pixelX / imageWidth) * worldSize;
+    final worldY = ((imageHeight - pixelY) / imageHeight) * worldHeight;
+    return (x: worldX, y: worldY);
+  }
 
   @override
-  List<Object?> get props => [
-    name,
-    image,
-    worldSize,
-    gridSize,
-    pixelsPerMeter,
-    imageWidth,
-    imageHeight,
-  ];
+  List<Object?> get props =>
+      [name, worldSize, gridSize, pixelsPerMeter, origin, mapImage,
+       _imageWidth, _imageHeight];
 
   @override
   String toString() =>
-      'MapMetadata($name, ${worldSize}m x ${worldHeight.toStringAsFixed(1)}m)';
-}
-
-class MapOffset {
-  final double dx;
-  final double dy;
-  
-  const MapOffset(this.dx, this.dy);
-  
-  double get distance => (dx * dx + dy * dy);
+      'MapMetadata(name: $name, size: $worldSize, '
+      'image: ${imageWidth}x${imageHeight})';
 }

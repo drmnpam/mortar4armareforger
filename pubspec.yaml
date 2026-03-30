@@ -52,9 +52,13 @@ flutter:
   assets:
     - assets/maps/
     - assets/tables/
+    - assets/ballistics/
     - assets/maps/everon/
     - assets/maps/arland/
     - assets/maps/kolguev/
+    - assets/maps/everon/map.jpg
+    - assets/maps/arland/map.jpg
+    - assets/maps/kolguev/map.jpg
     - assets/data_pack/maps/everon/
     - assets/data_pack/maps/arland/
     - assets/data_pack/maps/kolguev/

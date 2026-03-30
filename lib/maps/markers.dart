@@ -208,12 +208,21 @@ class MarkerManager {
     _markers.removeWhere((m) => m.type == type);
   }
   
-  /// Update marker position
+  /// Update marker position by ID
   void updateMarkerPosition(String id, Position newPosition) {
     final marker = getMarker(id);
     if (marker != null) {
       marker.updatePosition(newPosition);
     }
+  }
+
+  /// Move marker by type (for mortar/target)
+  void moveMarker(MarkerType type, Position newPosition) {
+    final marker = _markers.firstWhere(
+      (m) => m.type == type,
+      orElse: () => throw Exception('No marker of type $type found'),
+    );
+    marker.updatePosition(newPosition);
   }
   
   /// Clear all markers

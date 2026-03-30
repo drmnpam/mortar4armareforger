@@ -3,8 +3,8 @@
   "image": "map.png",
   "worldSize": 12800,
   "gridSize": 100,
-  "pixelsPerMeter": 0.2390625,
-  "imageWidth": 3060,
-  "imageHeight": 1080,
+  "pixelsPerMeter": 3.125,
+  "imageWidth": 4096,
+  "imageHeight": 4096,
   "description": "Arma Reforger Kolguev terrain - 12.8km x 12.8km"
 }

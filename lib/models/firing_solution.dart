@@ -1,32 +1,15 @@
 import 'package:equatable/equatable.dart';
 
-/// Complete firing solution for mortar
+/// Represents a calculated firing solution
 class FiringSolution extends Equatable {
-  /// Distance to target in meters
   final double distance;
-  
-  /// Azimuth in mils (0-6400)
   final double azimuth;
-  
-  /// Elevation in mils
   final double elevation;
-  
-  /// Charge number (0-3 typically)
   final int charge;
-  
-  /// Time of flight in seconds
   final double timeOfFlight;
-  
-  /// Height difference between mortar and target (positive = target higher)
   final double heightDifference;
-  
-  /// Suggested correction if needed
-  final String? correction;
-  
-  /// Mortar type used for calculation
   final String mortarType;
-  
-  /// Whether elevation was adjusted for height
+  final String? correction;
   final bool heightAdjusted;
 
   const FiringSolution({
@@ -36,36 +19,10 @@ class FiringSolution extends Equatable {
     required this.charge,
     required this.timeOfFlight,
     required this.heightDifference,
-    this.correction,
     required this.mortarType,
+    this.correction,
     this.heightAdjusted = false,
   });
-
-  /// Azimuth formatted as string with direction
-  String get azimuthDisplay {
-    final mils = azimuth.round();
-    return mils.toString().padLeft(4, '0');
-  }
-
-  /// Elevation formatted as string
-  String get elevationDisplay {
-    return elevation.toStringAsFixed(1);
-  }
-
-  /// Distance formatted as string
-  String get distanceDisplay {
-    return '${distance.toStringAsFixed(0)}m';
-  }
-
-  /// Time of flight formatted
-  String get timeOfFlightDisplay {
-    return '${timeOfFlight.toStringAsFixed(1)}s';
-  }
-
-  /// Format for copying to clipboard
-  String get clipboardFormat {
-    return 'AZ: $azimuthDisplay | EL: $elevationDisplay | CH: $charge | DST: $distanceDisplay';
-  }
 
   /// Create a copy with modified values
   FiringSolution copyWith({
@@ -75,8 +32,8 @@ class FiringSolution extends Equatable {
     int? charge,
     double? timeOfFlight,
     double? heightDifference,
-    String? correction,
     String? mortarType,
+    String? correction,
     bool? heightAdjusted,
   }) {
     return FiringSolution(
@@ -86,12 +43,23 @@ class FiringSolution extends Equatable {
       charge: charge ?? this.charge,
       timeOfFlight: timeOfFlight ?? this.timeOfFlight,
       heightDifference: heightDifference ?? this.heightDifference,
-      correction: correction ?? this.correction,
       mortarType: mortarType ?? this.mortarType,
+      correction: correction ?? this.correction,
       heightAdjusted: heightAdjusted ?? this.heightAdjusted,
     );
   }
 
+  /// Display getters
+  String get azimuthDisplay => azimuth.round().toString().padLeft(4, '0');
+  String get azimuthDegreesDisplay {
+    final degrees = azimuth * 0.05625;
+    return degrees.toStringAsFixed(1);
+  }
+  String get elevationDisplay => elevation.toStringAsFixed(1);
+  String get distanceDisplay => '${distance.round()}m';
+  String get timeOfFlightDisplay => '${timeOfFlight.toStringAsFixed(1)}s';
+
+  /// Convert to JSON
   Map<String, dynamic> toJson() => {
     'distance': distance,
     'azimuth': azimuth,
@@ -99,11 +67,12 @@ class FiringSolution extends Equatable {
     'charge': charge,
     'timeOfFlight': timeOfFlight,
     'heightDifference': heightDifference,
-    'correction': correction,
     'mortarType': mortarType,
+    'correction': correction,
     'heightAdjusted': heightAdjusted,
   };
 
+  /// Create from JSON
   factory FiringSolution.fromJson(Map<String, dynamic> json) {
     return FiringSolution(
       distance: (json['distance'] as num).toDouble(),
@@ -112,19 +81,15 @@ class FiringSolution extends Equatable {
       charge: json['charge'] as int,
       timeOfFlight: (json['timeOfFlight'] as num).toDouble(),
       heightDifference: (json['heightDifference'] as num).toDouble(),
-      correction: json['correction'] as String?,
       mortarType: json['mortarType'] as String,
+      correction: json['correction'] as String?,
       heightAdjusted: json['heightAdjusted'] as bool? ?? false,
     );
   }
 
   @override
-  List<Object?> get props => [
-    distance, azimuth, elevation, charge, 
-    timeOfFlight, heightDifference, mortarType, heightAdjusted
-  ];
+  List<Object?> get props => [distance, azimuth, elevation, charge, timeOfFlight, heightDifference, mortarType, correction, heightAdjusted];
 
   @override
-  String toString() => 
-    'FiringSolution(AZ: $azimuthDisplay, EL: $elevationDisplay, CH: $charge)';
+  String toString() => 'FiringSolution(az: $azimuth, el: $elevation, ch: $charge)';
 }

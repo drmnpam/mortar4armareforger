@@ -301,4 +301,63 @@ class StorageService {
     await Hive.close();
     _initialized = false;
   }
+
+  // ==================== NEW CALIBRATION SYSTEM ====================
+
+  /// Save calibration mode setting
+  Future<void> setCalibrationMode(String mode) async {
+    await saveSetting('calibration_mode', mode);
+  }
+
+  /// Get calibration mode setting
+  String? getCalibrationMode() {
+    return getSetting<String>('calibration_mode');
+  }
+
+  /// Save map calibration data
+  Future<void> saveMapCalibration(String mapName, Map<String, dynamic> calibration) async {
+    await initialize();
+    final box = Hive.box<String>(_mapStateBox);
+    await box.put('${mapName}_calibration', jsonEncode(calibration));
+  }
+
+  /// Load map calibration data
+  Map<String, dynamic>? loadMapCalibration(String mapName) {
+    if (!_initialized) return null;
+    final box = Hive.box<String>(_mapStateBox);
+    final json = box.get('${mapName}_calibration');
+    if (json != null) {
+      try {
+        return jsonDecode(json) as Map<String, dynamic>;
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  // ==================== CUSTOM WEAPONS ====================
+
+  /// Save custom weapons list
+  Future<void> setCustomWeapons(List<Map<String, dynamic>> weapons) async {
+    await initialize();
+    final box = Hive.box<dynamic>(_settingsBox);
+    await box.put('custom_weapons', jsonEncode(weapons));
+  }
+
+  /// Get custom weapons list
+  List<Map<String, dynamic>> getCustomWeapons() {
+    if (!_initialized) return [];
+    final box = Hive.box<dynamic>(_settingsBox);
+    final json = box.get('custom_weapons');
+    if (json != null) {
+      try {
+        return (jsonDecode(json as String) as List<dynamic>)
+            .cast<Map<String, dynamic>>();
+      } catch (_) {
+        return [];
+      }
+    }
+    return [];
+  }
 }

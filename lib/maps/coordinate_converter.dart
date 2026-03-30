@@ -40,11 +40,10 @@ class CoordinateConverter {
   static ({double x, double y}) worldToPixel(
     Position position,
     MapMetadata metadata,
-    double imageWidth,
-    double imageHeight,
+    int imageWidth,
+    int imageHeight,
   ) {
-    final offset = metadata.worldToPixel(position.x, position.y, imageWidth, imageHeight);
-    return (x: offset.dx, y: offset.dy);
+    return metadata.worldToPixel(position.x, position.y, imageWidth, imageHeight);
   }
   
   /// Convert map pixel coordinates to world coordinates
@@ -52,10 +51,11 @@ class CoordinateConverter {
     double pixelX,
     double pixelY,
     MapMetadata metadata,
-    double imageWidth,
-    double imageHeight,
+    int imageWidth,
+    int imageHeight,
   ) {
-    return metadata.pixelToWorld(pixelX, pixelY, imageWidth, imageHeight);
+    final result = metadata.pixelToWorld(pixelX, pixelY, imageWidth, imageHeight);
+    return Position(x: result.x, y: result.y);
   }
   
   /// Calculate grid cell coordinates from world position

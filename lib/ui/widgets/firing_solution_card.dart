@@ -85,8 +85,9 @@ class FiringSolutionCard extends StatelessWidget {
                     child: _buildMainValue(
                       context,
                       'AZIMUTH',
-                      solution.azimuthDisplay,
+                      '${solution.azimuthDisplay} mil',
                       Icons.compass_calibration,
+                      subValue: '${solution.azimuthDegreesDisplay}°',
                     ),
                   ),
                   Container(
@@ -98,7 +99,7 @@ class FiringSolutionCard extends StatelessWidget {
                     child: _buildMainValue(
                       context,
                       'ELEVATION',
-                      solution.elevationDisplay,
+                      '${solution.elevationDisplay} mil',
                       Icons.arrow_upward,
                     ),
                   ),
@@ -230,8 +231,9 @@ class FiringSolutionCard extends StatelessWidget {
     BuildContext context,
     String label,
     String value,
-    IconData icon,
-  ) {
+    IconData icon, {
+    String? subValue,
+  }) {
     return Column(
       children: [
         Row(
@@ -265,6 +267,16 @@ class FiringSolutionCard extends StatelessWidget {
             ],
           ),
         ),
+        if (subValue != null)
+          Text(
+            subValue,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'monospace',
+              color: AppTheme.textSecondary,
+            ),
+          ),
       ],
     );
   }
